@@ -16,8 +16,6 @@ start:
     lgdt [gdt64.pointer]
     jmp gdt64.code_segment:long_mode_start
 
-    ; print 'OK'
-    mov dword [0xb8000], 0x2f4b2f4f
     hlt
 
 check_cpuid:
@@ -77,7 +75,7 @@ setup_page_tables:
 .loop:
     mov eax, 0x200000 ; 2MiB
     mul ecx
-    or eax, 0x10000011
+    or eax, 0b10000011
     mov [page_table_l2 + ecx * 8], eax
 
     inc ecx
