@@ -1,32 +1,39 @@
-BOOT_FOLDER := src/impl/boot
+BOOT_SOURCE_FOLDER := src/impl/boot
 LINKER_FOLDER := targets
 KERNEL_BIN_FOLDER := targets/iso/boot
-KERNEL_FOLDER := src/impl/kernel
+KERNEL_SOURCE_FOLDER := src/impl/kernel
+OBJECT_FILES_FOLDER := build/object_files
 
-NASM_FLAGS := -f elf32
-GCC_FLAGS := -Wall
-OBJECT_FILES := header.o main.o main64.o kmain.o print.o 
-LINKER_FLAGS := -m elf_i386
+NASM_FLAGS := -f elf64
+GCC_FLAGS := -Wall -ffreestanding -std=c11
+LINKER_FLAGS := 
+
+C_SOURCE_FILES := $(shell find $(KERNEL_SOURCE_FOLDER) -name *.c)
+C_OBJECT_FILES := $(patsubst $(KERNEL_SOURCE_FOLDER)/%.c, $(OBJECT_FILES_FOLDER)/%.o, $(C_SOURCE_FILES))
+
+ASM_SOURCE_FILES := $(shell find $(BOOT_SOURCE_FOLDER) -name *.asm)
+ASM_OBJECT_FILES := $(patsubst $(BOOT_SOURCE_FOLDER)/%.asm, $(OBJECT_FILES_FOLDER)/%.o, $(ASM_SOURCE_FILES))
+
+OBJECT_FILES := $(C_OBJECT_FILES) $(ASM_OBJECT_FILES)
+
+GRUB_MKRESCUE_ARCHITECHTURE := /usr/lib/grub/i386-pc
 
 .PHONY: default
 default: $(KERNEL_BIN_FOLDER)/kernel.bin
-	grub-mkrescue /usr/lib/grub/i386-pc -o kernel.iso targets/iso
+	grub-mkrescue $(GRUB_MKRESCUE_ARCHITECHTURE) -o kernel.iso targets/iso
 
 $(KERNEL_BIN_FOLDER)/kernel.bin: $(OBJECT_FILES)
 	ld $(LINKER_FLAGS) -T $(LINKER_FOLDER)/linker.ld -o $@ $^
 
-%.o: $(BOOT_FOLDER)/%.asm
+$(OBJECT_FILES_FOLDER)/%.o: $(BOOT_SOURCE_FOLDER)/%.asm
 	nasm $(NASM_FLAGS) -o $@ $<
 
-kmain.o: $(KERNEL_FOLDER)/kmain.c $(KERNEL_FOLDER)/print.o
-	gcc $(GCC_FLAGS) -o $@ -c $^
-
-%.o: $(KERNEL_FOLDER)/%.c
+$(OBJECT_FILES_FOLDER)/%.o: $(KERNEL_SOURCE_FOLDER)/%.c
 	gcc $(GCC_FLAGS) -o $@ -c $<
 
 .PHONY: clean
 clean:
-	rm *.o
+	rm $(OBJECT_FILES_FOLDER)/*.o
 	rm $(KERNEL_BIN_FOLDER)/*.bin
 	rm *.iso
 
