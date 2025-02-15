@@ -4,9 +4,9 @@ KERNEL_BIN_FOLDER := targets/iso/boot
 KERNEL_SOURCE_FOLDER := src/impl/kernel
 OBJECT_FILES_FOLDER := build/object_files
 
-NASM_FLAGS := -f elf64
-GCC_FLAGS := -Wall -ffreestanding -std=c11
-LINKER_FLAGS := 
+NASM_FLAGS := -f elf32
+GCC_FLAGS := -m32 -Wall -ffreestanding -std=c11
+LINKER_FLAGS := -m elf_i386
 
 C_SOURCE_FILES := $(shell find $(KERNEL_SOURCE_FOLDER) -name *.c)
 C_OBJECT_FILES := $(patsubst $(KERNEL_SOURCE_FOLDER)/%.c, $(OBJECT_FILES_FOLDER)/%.o, $(C_SOURCE_FILES))

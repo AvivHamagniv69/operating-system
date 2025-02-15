@@ -1,4 +1,4 @@
-#include <stdint.h>
+/*#include <stdint.h>
 #include <stddef.h>
 #include "print.h"
 
@@ -50,4 +50,4 @@ void print_str(const char* const str, const size_t len) {
 
 void set_color(const uint8_t foreground, const uint8_t background) {
     curr_color = foreground | background << 4;
-}
+}*/
