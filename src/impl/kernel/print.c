@@ -1,5 +1,6 @@
-/*#include <stdint.h>
+#include <stdint.h>
 #include <stddef.h>
+#include "util.h"
 #include "print.h"
 
 typedef enum Color {
@@ -42,12 +43,13 @@ void clear_screen() {
     }
 }
 
-void print_str(const char* const str, const size_t len) {
-    for(size_t i = 0; i < len; i++) {
-        print_char(str[i]);
+void print_str(const char* str) {
+    while(*str != '\0') {
+        print_char(*str);
+        str++;
     }
 }
 
 void set_color(const uint8_t foreground, const uint8_t background) {
     curr_color = foreground | background << 4;
-}*/
+}

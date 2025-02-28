@@ -3,18 +3,23 @@ LINKER_FOLDER := targets
 KERNEL_BIN_FOLDER := targets/iso/boot
 KERNEL_SOURCE_FOLDER := src/impl/kernel
 OBJECT_FILES_FOLDER := build/object_files
+IMPL_FOLDER := src/impl
+IMPL_SUB_FOLDERS := $(sort $(dir $(wildcard src/impl/*/)))
 
 NASM_FLAGS := -f elf32
-GCC_FLAGS := -m32 -Wall -ffreestanding -std=c11
+GCC_FLAGS := -m32 -Wall -ffreestanding -fno-builtin -std=c11
 LINKER_FLAGS := -m elf_i386
 
-C_SOURCE_FILES := $(shell find $(KERNEL_SOURCE_FOLDER) -name *.c)
-C_OBJECT_FILES := $(patsubst $(KERNEL_SOURCE_FOLDER)/%.c, $(OBJECT_FILES_FOLDER)/%.o, $(C_SOURCE_FILES))
+C_SOURCE_FILES := $(shell find $(IMPL_FOLDER)/*/ -name *.c)
+C_OBJECT_FILES := $(patsubst %.c, $(OBJECT_FILES_FOLDER)/%.o, $(notdir $(C_SOURCE_FILES)))
 
-ASM_SOURCE_FILES := $(shell find $(BOOT_SOURCE_FOLDER) -name *.asm)
-ASM_OBJECT_FILES := $(patsubst $(BOOT_SOURCE_FOLDER)/%.asm, $(OBJECT_FILES_FOLDER)/%.o, $(ASM_SOURCE_FILES))
+ASM_SOURCE_FILES := $(shell find $(IMPL_FOLDER)/*/ -name *.asm)
+ASM_OBJECT_FILES := $(patsubst %.asm, $(OBJECT_FILES_FOLDER)/%.o, $(notdir $(ASM_SOURCE_FILES)))
 
 OBJECT_FILES := $(C_OBJECT_FILES) $(ASM_OBJECT_FILES)
+$(info $(C_SOURCE_FILES))
+$(info $(ASM_SOURCE_FILES))
+$(info $(OBJECT_FILES))
 
 GRUB_MKRESCUE_ARCHITECHTURE := /usr/lib/grub/i386-pc
 
@@ -25,7 +30,7 @@ default: $(KERNEL_BIN_FOLDER)/kernel.bin
 $(KERNEL_BIN_FOLDER)/kernel.bin: $(OBJECT_FILES)
 	ld $(LINKER_FLAGS) -T $(LINKER_FOLDER)/linker.ld -o $@ $^
 
-$(OBJECT_FILES_FOLDER)/%.o: $(BOOT_SOURCE_FOLDER)/%.asm
+$(OBJECT_FILES_FOLDER)/%.o: $(IMPL_FOLDER)/*/%.asm
 	nasm $(NASM_FLAGS) -o $@ $<
 
 $(OBJECT_FILES_FOLDER)/%.o: $(KERNEL_SOURCE_FOLDER)/%.c
@@ -39,4 +44,4 @@ clean:
 
 .PHONY: run
 run:
-	qemu-system-x86_64 -cdrom kernel.iso
+	qemu-system-i386 -cdrom kernel.iso
