@@ -65,3 +65,7 @@ int memcmp(const void *s1, const void *s2, size_t n) {
 
     return 0;
 }
+
+void out_port_b(uint16_t port, uint8_t val) {
+    __asm__ __volatile__ ("outb %1, %0" : : "dN" (port), "a" (val));
+}
