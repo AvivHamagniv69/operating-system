@@ -7,7 +7,7 @@ IMPL_FOLDER := src/impl
 IMPL_SUB_FOLDERS := $(sort $(dir $(wildcard src/impl/*/)))
 
 NASM_FLAGS := -f elf32
-GCC_FLAGS := -m32 -Wall -ffreestanding -fno-builtin -std=c11
+GCC_FLAGS := -g -m32 -Wall -Wextra -ffreestanding -fno-builtin -std=c11
 LINKER_FLAGS := -m elf_i386
 
 C_SOURCE_FILES := $(shell find $(IMPL_FOLDER)/*/ -name *.c)
@@ -33,8 +33,8 @@ $(KERNEL_BIN_FOLDER)/kernel.bin: $(OBJECT_FILES)
 $(OBJECT_FILES_FOLDER)/%.o: $(IMPL_FOLDER)/*/%.asm
 	nasm $(NASM_FLAGS) -o $@ $<
 
-$(OBJECT_FILES_FOLDER)/%.o: $(KERNEL_SOURCE_FOLDER)/%.c
-	gcc $(GCC_FLAGS) -o $@ -c $<
+$(OBJECT_FILES_FOLDER)/%.o: $(IMPL_FOLDER)/*/%.c
+	/home/aviv/opt/cross/bin/i686-elf-gcc $(GCC_FLAGS) -o $@ -c $<
 
 .PHONY: clean
 clean:
@@ -45,3 +45,7 @@ clean:
 .PHONY: run
 run:
 	qemu-system-i386 -cdrom kernel.iso
+
+.PHONY: run_debug
+run_debug:
+	qemu-system-i386 -s -S -cdrom kernel.iso

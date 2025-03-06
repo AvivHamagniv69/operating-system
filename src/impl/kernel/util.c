@@ -66,6 +66,15 @@ int memcmp(const void *s1, const void *s2, size_t n) {
     return 0;
 }
 
-void out_port_b(uint16_t port, uint8_t val) {
-    __asm__ __volatile__ ("outb %1, %0" : : "dN" (port), "a" (val));
+void outb(uint16_t port, uint8_t val) {
+    __asm__ __volatile__ ("outb %1, %0" : : "Nd" (port), "a" (val): "memory");
+}
+
+uint8_t inb(uint16_t port) {
+    uint8_t ret;
+    __asm__ volatile ( "inb %w1, %b0"
+                   : "=a"(ret)
+                   : "Nd"(port)
+                   : "memory");
+    return ret;
 }

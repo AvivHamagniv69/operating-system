@@ -1,19 +1,7 @@
 #include <stdint.h>
 #include "idt.h"
 #include "util.h"
-
-struct IdtEntry {
-    uint16_t base_low;
-    uint16_t sel;
-    uint8_t always0;
-    uint8_t flags;
-    uint16_t base_high;
-} __attribute__((packed));
-
-struct IdtPtr {
-    uint16_t limit;
-    uint32_t base;
-} __attribute__((packed));
+#include "print.h"
 
 IdtEntry idt_entries[256] = {0};
 IdtPtr idt_ptr;
@@ -22,20 +10,20 @@ void init_idt(void) {
     idt_ptr.limit = sizeof(IdtEntry) * 256 - 1;
     idt_ptr.base = (uint32_t) &idt_entries;
 
-    out_port_b(0x20, 0x11);
-    out_port_b(0xa0, 0x11);
+    outb(0x20, 0x11);
+    outb(0xa0, 0x11);
 
-    out_port_b(0x21, 0x20);
-    out_port_b(0xa1, 0x28);
+    outb(0x21, 0x20);
+    outb(0xa1, 0x28);
 
-    out_port_b(0x21, 0x04);
-    out_port_b(0xa1, 0x02);
+    outb(0x21, 0x04);
+    outb(0xa1, 0x02);
 
-    out_port_b(0x21, 0x01);
-    out_port_b(0xa1, 0x01);
+    outb(0x21, 0x01);
+    outb(0xa1, 0x01);
 
-    out_port_b(0x21, 0x0);
-    out_port_b(0xa1, 0x0);
+    outb(0x21, 0x0);
+    outb(0xa1, 0x0);
 
     idt_entries[0] = set_idt_gate((uint32_t) isr0, 0x08, 0x8e);
     idt_entries[1] = set_idt_gate((uint32_t) isr1, 0x08, 0x8e);
@@ -70,6 +58,23 @@ void init_idt(void) {
     idt_entries[30] = set_idt_gate((uint32_t) isr30, 0x08, 0x8e);
     idt_entries[31] = set_idt_gate((uint32_t) isr31, 0x08, 0x8e);
 
+    idt_entries[32] = set_idt_gate((uint32_t) irq0, 0x08, 0x8e);
+    idt_entries[33] = set_idt_gate((uint32_t) irq1, 0x08, 0x8e);
+    idt_entries[34] = set_idt_gate((uint32_t) irq2, 0x08, 0x8e);
+    idt_entries[35] = set_idt_gate((uint32_t) irq3, 0x08, 0x8e);
+    idt_entries[36] = set_idt_gate((uint32_t) irq4, 0x08, 0x8e);
+    idt_entries[37] = set_idt_gate((uint32_t) irq5, 0x08, 0x8e);
+    idt_entries[38] = set_idt_gate((uint32_t) irq6, 0x08, 0x8e);
+    idt_entries[39] = set_idt_gate((uint32_t) irq7, 0x08, 0x8e);
+    idt_entries[40] = set_idt_gate((uint32_t) irq8, 0x08, 0x8e);
+    idt_entries[41] = set_idt_gate((uint32_t) irq9, 0x08, 0x8e);
+    idt_entries[42] = set_idt_gate((uint32_t) irq10, 0x08, 0x8e);
+    idt_entries[43] = set_idt_gate((uint32_t) irq11, 0x08, 0x8e);
+    idt_entries[44] = set_idt_gate((uint32_t) irq12, 0x08, 0x8e);
+    idt_entries[45] = set_idt_gate((uint32_t) irq13, 0x08, 0x8e);
+    idt_entries[46] = set_idt_gate((uint32_t) irq14, 0x08, 0x8e);
+    idt_entries[47] = set_idt_gate((uint32_t) irq15, 0x08, 0x8e);
+
     idt_entries[128] = set_idt_gate((uint32_t) isr128, 0x08, 0x8e);
     idt_entries[177] = set_idt_gate((uint32_t) isr177, 0x08, 0x8e);
 
@@ -85,4 +90,75 @@ IdtEntry set_idt_gate(uint32_t base, uint16_t sel, uint8_t flags) {
     entry.flags = flags | 0x60;
 
     return entry;
+}
+
+void isr_handler(InterruptRegisters* regs) {
+    static char* exception_messages[] = {
+        "division by zero",
+        "debug",
+        "non maskable interrupt",
+        "breakpoint",
+        "into detected overflow",
+        "out of bounds",
+        "invalid opcode",
+        "no coprocessor",
+        "double fault",
+        "coprocessor segment overrun",
+        "bad tss",
+        "segment not present",
+        "stack fault",
+        "general protection fault",
+        "page fault",
+        "unknown interrupt",
+        "coprocessor fault",
+        "alignment check",
+        "machine check",
+        "reserved",
+        "reserved",
+        "reserved",
+        "reserved",
+        "reserved",
+        "reserved",
+        "reserved",
+        "reserved",
+        "reserved",
+        "reserved",
+        "reserved",
+        "reserved",
+        "reserved",
+    };
+
+    if(regs->int_no < 32) {
+        kprint(exception_messages[regs->int_no]);
+        kprint("exception! sytem halted");
+        for(;;);
+    }
+}
+
+void* irq_routines[16] = {
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+};
+
+void irq_install_handler(uint32_t irq, void (*handler)(InterruptRegisters* r)) {
+    irq_routines[irq] = handler;
+}
+
+void irq_uninstall_handler(uint32_t irq) {
+    irq_routines[irq] = 0;
+}
+
+void irq_handler(InterruptRegisters* regs) {
+    void (*handler)(InterruptRegisters* regs);
+    handler = irq_routines[regs->int_no - 32];
+
+    if(handler) {
+        handler(regs);
+    }
+
+    if(regs->int_no >= 40) {
+        outb(0xa0, 0b100000);
+    }
+
+    outb(0x20, 0b100000);
 }

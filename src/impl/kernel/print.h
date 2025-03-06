@@ -2,9 +2,17 @@
 #include <stdint.h>
 #include <stddef.h>
 
-typedef enum Color Color;
+typedef enum Color {
+    COLOR_BLACK = 0,
+    COLOR_WHITE = 15,
+} Color;
 
-void print_char(const char c);
+void pchar(const char c);
+
 void clear_screen();
-void print_str(const char* str);
+
+void kprint(const char* str);
+
+void kprint_num8(uint8_t num);
+
 void set_color(const uint8_t foreground, const uint8_t background);
