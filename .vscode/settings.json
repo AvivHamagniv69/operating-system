@@ -2,7 +2,11 @@
   "files.associations": {
     "stddef.h": "c",
     "stdint.h": "c",
-    "stdint-gcc.h": "c"
+    "stdint-gcc.h": "c",
+    "util.h": "c",
+    "multiboot.h": "c",
+    "memory.h": "c"
   },
-  "C_Cpp_Runner.msvcBatchPath": ""
+  "C_Cpp_Runner.msvcBatchPath": "",
+  "C_Cpp.errorSquiggles": "disabled"
 }

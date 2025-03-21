@@ -35,8 +35,39 @@ static inline void pnewline(void) {
 }
 
 void pchar(const char c) {
-    vmemory[column_amt * curr_row + curr_column] = c | curr_color;
-    curr_column++;            
+    switch(c){
+        case '\n':
+            pnewline();
+            break;
+        case '\r':
+            curr_column = 0;
+            break;
+        case '\b':
+            if (curr_column == 0 && curr_row != 0){
+                curr_row--;
+                curr_column = column_amt;
+            }
+            vmemory[curr_row * column_amt + (--curr_column)] = ' ' | curr_color;
+            break;
+        case '\t':
+            if (curr_column == column_amt){
+                pnewline();
+            }
+            uint16_t tabLen = 4 - (curr_column % 4);
+            while (tabLen != 0){
+                vmemory[curr_row * column_amt + (curr_column++)] = ' ' | curr_color;
+                tabLen--;
+            }
+            break;
+        default:
+            if (curr_column == column_amt){
+                pnewline();
+            }
+
+            vmemory[curr_row * column_amt + curr_column] = c | curr_color;
+            curr_column++;
+            break;
+    }
 
     if(curr_column >= column_amt && curr_row >= row_amt) {
         // TODO
@@ -62,38 +93,7 @@ void clear_screen() {
 
 void kprint(const char* str) {
     while(*str){
-        switch(*str){
-            case '\n':
-                pnewline();
-                break;
-            case '\r':
-                curr_column = 0;
-                break;
-            case '\b':
-                if (curr_column == 0 && curr_row != 0){
-                    curr_row--;
-                    curr_column = column_amt;
-                }
-                vmemory[curr_row * column_amt + (--curr_column)] = ' ' | curr_color;
-                break;
-            case '\t':
-                if (curr_column == column_amt){
-                    pnewline();
-                }
-                uint16_t tabLen = 4 - (curr_column % 4);
-                while (tabLen != 0){
-                    vmemory[curr_row * column_amt + (curr_column++)] = ' ' | curr_color;
-                    tabLen--;
-                }
-                break;
-            default:
-                if (curr_column == column_amt){
-                    pnewline();
-                }
-
-                vmemory[curr_row * column_amt + (curr_column++)] = *str | curr_color;
-                break;
-        }
+        pchar(*str);
         str++;
     }
 

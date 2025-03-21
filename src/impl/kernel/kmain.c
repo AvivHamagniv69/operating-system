@@ -5,18 +5,10 @@
 #include "gdt.h"
 #include "idt.h"
 #include "pit.h"
+#include "../drivers/ps2.h"
+#include "memory.h"
 
-void ps2(InterruptRegisters* regs) {
-    uint8_t a = inb(0x60);
-    if(a != 0) {
-        kprint_num8(a);
-        kprint("\n");
-    }
-}
-
-void init_keyboard(void) {
-    irq_install_handler(1, &ps2);    
-}
+extern uint32_t endkernel;
 
 void kmain() {
     clear_screen();

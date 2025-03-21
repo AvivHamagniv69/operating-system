@@ -12,16 +12,26 @@ SECTIONS
 
     .text :
     {
+        text_start = .;
         *(.text)
     }
 
-    .data :
-    {
-        *(.data)
+    .rodata ALIGN (0x1000) : {
+        *(.rodata)
     }
 
-    .bss :
-    {
+    .data ALIGN (0x1000) : {
+
+    *(.data)
+    end_data = .;
+    }
+
+
+    .bss : {
+        sbss = .;
+        *(COMMON)
         *(.bss)
+        ebss = .;
+	endkernel = .;
     }
 }

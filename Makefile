@@ -26,6 +26,7 @@ GRUB_MKRESCUE_ARCHITECHTURE := /usr/lib/grub/i386-pc
 .PHONY: default
 default: $(KERNEL_BIN_FOLDER)/kernel.bin
 	grub-mkrescue $(GRUB_MKRESCUE_ARCHITECHTURE) -o kernel.iso targets/iso
+	rm $(OBJECT_FILES_FOLDER)/*.o
 
 $(KERNEL_BIN_FOLDER)/kernel.bin: $(OBJECT_FILES)
 	ld $(LINKER_FLAGS) -T $(LINKER_FOLDER)/linker.ld -o $@ $^
@@ -38,7 +39,6 @@ $(OBJECT_FILES_FOLDER)/%.o: $(IMPL_FOLDER)/*/%.c
 
 .PHONY: clean
 clean:
-	rm $(OBJECT_FILES_FOLDER)/*.o
 	rm $(KERNEL_BIN_FOLDER)/*.bin
 	rm *.iso
 
