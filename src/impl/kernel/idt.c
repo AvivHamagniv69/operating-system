@@ -130,7 +130,8 @@ void isr_handler(InterruptRegisters* regs) {
 
     if(regs->int_no < 32) {
         kprint(exception_messages[regs->int_no]);
-        kprint("exception! sytem halted");
+        kprint("\n");
+        kprint("exception! sytem halted\n");
         for(;;);
     }
 }
