@@ -99,7 +99,7 @@ void kprint(const char* str) {
 
 }
 
-void kprint_num8(uint8_t num) {
+void kprint_num_u8(uint8_t num) {
     char buf[4] = {-1, -1, -1, 0};
     int i = 2;
     while(num > 0) {
@@ -109,6 +109,21 @@ void kprint_num8(uint8_t num) {
     }
     i = 0;
     while(i < 3 && buf[i] == -1) {
+        i++;
+    }
+    kprint(&buf[i]);
+}
+
+void kprint_num_u32(uint32_t num) {
+    char buf[11] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0};
+    int i = 9;
+    while(num > 0) {
+        buf[i] = '0'+(num%10);
+        num /= 10;
+        i--;
+    }
+    i = 0;
+    while(i < 10 && buf[i] == -1) {
         i++;
     }
     kprint(&buf[i]);

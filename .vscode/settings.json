@@ -5,7 +5,9 @@
     "stdint-gcc.h": "c",
     "util.h": "c",
     "multiboot.h": "c",
-    "memory.h": "c"
+    "memory.h": "c",
+    "cstdlib": "c",
+    "cstdint": "c"
   },
   "C_Cpp_Runner.msvcBatchPath": "",
   "C_Cpp.errorSquiggles": "disabled"

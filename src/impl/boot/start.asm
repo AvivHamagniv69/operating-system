@@ -23,15 +23,20 @@ global start
 
 section .text
     align 4
-    dd 0x1badb002
+    dd 0x1BADB002
     dd 0x00000003
-    dd -(0x1badb002 + 0x00000003)
+    dd -(0x1BADB002 + 0x00000003)
 
 extern kmain
 
 start:
     cli
     mov esp, stack_top
+    ; mov eax, 0x2BADB002
+    mov eax, multiboot_magic
+    mov ebx, multiboot_info
+    push ebx
+    push eax
     call kmain
     hlt
 .halt:
@@ -44,3 +49,9 @@ section .bss
     stack_bottom:
         resb 4096
     stack_top:
+
+section .data
+    multiboot_magic:
+        .long 0
+    multiboot_info:
+        .long 0

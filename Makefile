@@ -6,7 +6,7 @@ OBJECT_FILES_FOLDER := build/object_files
 IMPL_FOLDER := src/impl
 IMPL_SUB_FOLDERS := $(sort $(dir $(wildcard src/impl/*/)))
 
-NASM_FLAGS := -f elf32
+NASM_FLAGS := -f elf32 -g 
 GCC_FLAGS := -g -m32 -Wall -Wextra -ffreestanding -fno-builtin -std=c11
 LINKER_FLAGS := -m elf_i386
 
