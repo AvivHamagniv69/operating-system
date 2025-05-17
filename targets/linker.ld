@@ -1,37 +1,40 @@
 OUTPUT_FORMAT(elf32-i386)
-ENTRY(start)
+ENTRY(_start)
 
 SECTIONS
 {
-    . = 0x100000;
+    . = 0x00100000;
 
-    .boot :
-    {
-        KEEP(*(.multiboot_header))
+    .multiboot ALIGN(4K): {
+        *(.multiboot)
     }
 
-    .text :
-    {
-        text_start = .;
+    .note.gnu.build-id ALIGN(4K): {
+        *(.note.gnu.build-id)
+    }
+
+    .boot ALIGN(4K): {
+        *(.boot)
+    }
+
+    . += 0xC0000000;
+
+    .text ALIGN(4K): AT(ADDR(.text) - 0xC0000000) {
         *(.text)
     }
 
-    .rodata ALIGN (0x1000) : {
+    .rodata ALIGN(4K): AT(ADDR(.rodata) - 0xC0000000) {
         *(.rodata)
     }
 
-    .data ALIGN (0x1000) : {
-
-    *(.data)
-    end_data = .;
+    .data ALIGN(4K): AT(ADDR(.data) - 0xC0000000) {
+        *(.data)
     }
 
-
-    .bss : {
-        sbss = .;
+    .bss ALIGN(4K): AT(ADDR(.bss) - 0xC0000000) {
         *(COMMON)
         *(.bss)
-        ebss = .;
-	endkernel = .;
     }
+
+    _kernel_end = .;
 }

@@ -15,6 +15,10 @@ static void hcf(void) {
     }
 }
 
+extern inline uint32_t ceil_div(uint32_t a, uint32_t b)  {
+    return (a + b - 1)/b;
+}
+
 void *memcpy(void *dest, const void *src, size_t n) {
     uint8_t *pdest = (uint8_t *)dest;
     const uint8_t *psrc = (const uint8_t *)src;

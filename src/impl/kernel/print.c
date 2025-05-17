@@ -3,7 +3,7 @@
 #include "util.h"
 #include "print.h"
 
-static uint16_t* const vmemory = (uint16_t*) 0xb8000;
+static uint16_t* const vmemory = (uint16_t*) 0xC00B8000;
 static size_t curr_column = 0;
 static size_t curr_row = 0;
 static size_t column_amt = 80;

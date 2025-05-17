@@ -1,5 +1,6 @@
 #pragma once
 #include <stddef.h>
+#include <stdint.h>
 
 struct InterruptRegisters {
     uint32_t cr2;
@@ -25,6 +26,8 @@ struct InterruptRegisters {
 };
 
 typedef struct InterruptRegisters InterruptRegisters;
+
+uint32_t ceil_div(uint32_t a, uint32_t b);
 
 void *memcpy(void *dest, const void *src, size_t n);
 

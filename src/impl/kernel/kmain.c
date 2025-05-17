@@ -13,7 +13,7 @@
 
 extern uint32_t endkernel;
 
-void kmain(uint32_t addr) {
+void kmain(uint32_t magic, uint32_t addr) {
     multiboot_info_t* boot_info = (multiboot_info_t*)addr;
     clear_screen();
 
@@ -22,16 +22,12 @@ void kmain(uint32_t addr) {
     init_pit();
     init_keyboard();
     kprint("hello world\n");
-    // kprint_num8(8);
 
-    /*if(magic != MULTIBOOT_BOOTLOADER_MAGIC) {
-        kprint("Invalid magic number: ");
-        kprint_num_u32(magic);
-        for(;;);
-    }*/
+    uint32_t mod1 = *(uint32_t*)(boot_info->mods_addr + 4);
+    uint32_t physic_alloc_start = (mod1 + 0xFFF) & ~0xFFF;
 
-    init_mem(boot_info);
-
+    init_mem(boot_info->mem_upper * 1024, physic_alloc_start);
+    kprint("52\% of the crime");
 
     for(;;);
     return;
