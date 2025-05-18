@@ -6,7 +6,7 @@
 #include "idt.h"
 #include "pit.h"
 #include "../drivers/ps2.h"
-#include "memory.h"
+#include "mem.h"
 #include "multiboot.h"
 
 #define MULTIBOOT_BOOTLOADER_MAGIC 0x1BADB002
@@ -23,10 +23,7 @@ void kmain(uint32_t magic, uint32_t addr) {
     init_keyboard();
     kprint("hello world\n");
 
-    uint32_t mod1 = *(uint32_t*)(boot_info->mods_addr + 4);
-    uint32_t physic_alloc_start = (mod1 + 0xFFF) & ~0xFFF;
-
-    init_mem(boot_info->mem_upper * 1024, physic_alloc_start);
+    init_mem(boot_info);
     kprint("52\% of the crime");
 
     for(;;);

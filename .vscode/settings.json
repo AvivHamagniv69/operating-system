@@ -7,7 +7,21 @@
     "multiboot.h": "c",
     "memory.h": "c",
     "cstdlib": "c",
-    "cstdint": "c"
+    "cstdint": "c",
+    "page_frame_allocator.h": "c",
+    "array": "c",
+    "deque": "c",
+    "string": "c",
+    "unordered_map": "c",
+    "vector": "c",
+    "string_view": "c",
+    "initializer_list": "c",
+    "span": "c",
+    "format": "c",
+    "text_encoding": "c",
+    "stdbool.h": "c",
+    "memoryold.h": "c",
+    "variant": "c"
   },
   "C_Cpp_Runner.msvcBatchPath": "",
   "C_Cpp.errorSquiggles": "disabled"
