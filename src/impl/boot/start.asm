@@ -1,69 +1,69 @@
-bits 32
+MBOOT_PAGE_ALIGN EQU 1 << 0
+MBOOT_MEM_INFO EQU 1 << 1
+MBOOT_USE_GFX EQU 0
 
-MBOOT_PAGE_ALIGN equ 1 << 0
-MBOOT_MEM_INFO equ 1 << 1
-MBOOT_USE_GFX equ 0
-
-MBOOT_MAGIC equ 0x1BADB002
-MBOOT_FLAGS equ MBOOT_PAGE_ALIGN | MBOOT_MEM_INFO | MBOOT_USE_GFX
-MBOOT_CHECKSUM equ -(MBOOT_MAGIC + MBOOT_FLAGS)
+MBOOT_MAGIC EQU 0x1BADB002
+MBOOT_FLAGS EQU MBOOT_PAGE_ALIGN | MBOOT_MEM_INFO | MBOOT_USE_GFX
+MBOOT_CHECKSUM EQU -(MBOOT_MAGIC + MBOOT_FLAGS)
 
 section .multiboot
-align 4
-    dd MBOOT_MAGIC          ; Magic number (Multiboot1)
-    dd MBOOT_FLAGS          ; Flags: align modules + memory info
-    dd MBOOT_CHECKSUM ; Checksum (must make sum == 0)
-    dd 0, 0, 0, 0, 0
+ALIGN 4
+    DD MBOOT_MAGIC
+    DD MBOOT_FLAGS
+    DD MBOOT_CHECKSUM
+    DD 0, 0, 0, 0, 0
 
-    dd 0
-    dd 800
-    dd 600
-    dd 32
+    DD 0
+    DD 800
+    DD 600
+    DD 32
 
-section .bss
-    align 16
-    stack_bottom:
-        resb 16384 * 8
-    stack_top:
+SECTION .bss
+ALIGN 16
+stack_bottom:
+    RESB 16384 * 8
+stack_top:
 
 section .boot
-    global _start
-    _start:
-        mov ecx, (initial_page_dir - 0xC0000000)
-        mov cr3, ecx
 
-        mov ecx, cr4
-        or ecx, 0x10
-        mov cr4, ecx
+global _start
+_start:
+    MOV ecx, (initial_page_dir - 0xC0000000)
+    MOV cr3, ecx
 
-        mov ecx, cr0
-        or ecx, 0x80000000
-        mov cr0, ecx
+    MOV ecx, cr4
+    OR ecx, 0x10
+    MOV cr4, ecx
 
-        jmp higher_half
+    MOV ecx, cr0
+    OR ecx, 0x80000000
+    MOV cr0, ecx
+
+    JMP higher_half
 
 section .text
+higher_half:
+    MOV esp, stack_top
+    PUSH ebx
+    PUSH eax
+    XOR ebp, ebp
     extern kmain
-    higher_half:
-        mov esp, stack_top
-        push ebx
-        push eax
-        xor ebp, ebp
-        call kmain
-        
-    .halt:
-        hlt
-        jmp .halt
+    CALL kmain
+
+halt:
+    hlt
+    JMP halt
+
 
 section .data
 align 4096
 global initial_page_dir
 initial_page_dir:
-    dd 10000011b
-    times 768-1 dd 0
+    DD 10000011b
+    TIMES 768-1 DD 0
 
-    dd (0 << 22) | 10000011b
-    dd (1 << 22) | 10000011b
-    dd (2 << 22) | 10000011b
-    dd (3 << 22) | 10000011b
-    times 256-4 dd 0
+    DD (0 << 22) | 10000011b
+    DD (1 << 22) | 10000011b
+    DD (2 << 22) | 10000011b
+    DD (3 << 22) | 10000011b
+    TIMES 256-4 DD 0

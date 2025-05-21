@@ -1,11 +1,5 @@
 #pragma once
-#include "multiboot.h"
+#include <stdint.h>
 
-typedef struct BitMapPtr {
-    uint32_t index;
-    uint8_t bit;
-} BitMapPtr;
-
-void init_mem(multiboot_info_t* boot_info);
+void init_mem(uint32_t memHigh, uint32_t physicalAllocStart);
 void* kmalloc(uint32_t size);
-void* kfree(void* vaddr);

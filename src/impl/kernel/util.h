@@ -23,7 +23,7 @@ struct InterruptRegisters {
     uint32_t eflags;
     uint32_t useresp;
     uint32_t ss;
-};
+} __attribute__((packed));
 
 typedef struct InterruptRegisters InterruptRegisters;
 

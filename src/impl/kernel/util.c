@@ -15,7 +15,7 @@ static void hcf(void) {
     }
 }
 
-extern inline uint32_t ceil_div(uint32_t a, uint32_t b)  {
+uint32_t ceil_div(uint32_t a, uint32_t b)  {
     return (a + b - 1)/b;
 }
 

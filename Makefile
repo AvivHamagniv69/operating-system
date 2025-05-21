@@ -42,6 +42,10 @@ clean:
 	rm $(KERNEL_BIN_FOLDER)/*.bin
 	rm *.iso
 
+.PHONY: clean_o_files
+clean_o_files:
+	rm $(OBJECT_FILES_FOLDER)/*.o
+
 .PHONY: run
 run:
 	qemu-system-i386 -cdrom kernel.iso

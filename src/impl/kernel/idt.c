@@ -132,6 +132,13 @@ void isr_handler(InterruptRegisters* regs) {
         kprint(exception_messages[regs->int_no]);
         kprint("\n");
         kprint("exception! sytem halted\n");
+        kprint("regs:\n");
+        kprint("cr2: ");
+        kprint_num_u32(regs->cr2);
+        kprint("\n");
+        kprint("err_code: ");
+        kprint_num_u32(regs->err_code);
+
         for(;;);
     }
 }
