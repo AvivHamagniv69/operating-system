@@ -48,8 +48,8 @@ clean_o_files:
 
 .PHONY: run
 run:
-	qemu-system-i386 -cdrom kernel.iso
+	qemu-system-i386  -cdrom kernel.iso
 
 .PHONY: run_debug
 run_debug:
-	qemu-system-i386 -s -S -cdrom kernel.iso
+	qemu-system-i386 -d page -s -S -cdrom kernel.iso
