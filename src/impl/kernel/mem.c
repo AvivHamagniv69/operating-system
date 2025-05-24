@@ -170,13 +170,17 @@ static void mmap(uint32_t vaddr, uint32_t phys_addr, uint32_t flags) {
     uint32_t* pageDir = REC_PAGEDIR;
     if((pageDir[pdIndex] & 0x1) == 0) {
         uint32_t p = pmm_alloc_page_frame();
-        pageDir[pdIndex] = (p & 0xFFFFF000) | PAGE_FLAG_PRESENT | PAGE_FLAG_WRITE;
+        pageDir[pdIndex] = p | PAGE_FLAG_PRESENT | PAGE_FLAG_WRITE;
         __asm__ volatile ("movl	%cr3,%eax\n movl	%eax,%cr3");
     }
     uint32_t* pt = PT_VIRT_ADDR(pdIndex);
 
-    pt[ptIndex] = (phys_addr & 0xFFFFF000) | PAGE_FLAG_PRESENT | flags;
+    pt[ptIndex] = phys_addr | PAGE_FLAG_PRESENT | PAGE_FLAG_WRITE;
     invalidate(vaddr);
+
+    for(uint32_t i = 0; i < PAGE_FRAME_SIZE; i += 4) {
+        *(uint32_t*)(vaddr+i) = 0;
+    }
 
     // if we mapped a page in the kernel space we will sync the other pds
     if (prevPageDir != 0){
