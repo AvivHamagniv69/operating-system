@@ -6,22 +6,19 @@
 #include "mem.h"
 #include "print.h"
 
-// only took me a week to get this fuckass memory working
-
-#define NUM_PAGES_DIRS 256
-#define NUM_PAGE_TABLES 1024
-#define NUM_PAGES 1024
+#define PAGE_DIRS_AMT 256
+#define PAGE_TABLES_AMT 1024
+#define TABLES_AMT 1024
 #define NUM_PAGE_FRAMES (0x100000000 / 0x1000 / 32)
 #define PAGE_FRAME_SIZE 0x1000
 
 #define KERNEL_START 0xC0000000
 #define KERNEL_MALLOC 0xD000000
 #define REC_PAGEDIR ((uint32_t*)0xFFFFF000)
-#define PT_VIRT_ADDR(i) ((uint32_t*)(0xFFC00000 + ((i) << 12)))
+#define PT_VIRT_ADDR(i) ((uint32_t*)0xFFC00000) + (0x400 * i)
 
-#define PAGE_FLAG_PRESENT (1 << 0)
-#define PAGE_FLAG_WRITE (1 << 1)
-#define PAGE_FLAG_OWNER (1 << 9)
+#define PRESENT_FLAG (1 << 0)
+#define W_FLAG (1 << 1)
 
 typedef struct BitMapPtr {
     uint32_t index;
@@ -55,11 +52,21 @@ static inline void invalidate(uint32_t vaddr){
     __asm__ volatile("invlpg %0" :: "m"(vaddr));
 }
 
+static inline void flush_tlb(void) {
+    __asm__ volatile(
+        "mov %%cr3, %%eax\n\t"
+        "mov %%eax, %%cr3\n\t"
+        :
+        :
+        : "eax"
+    );
+}
+
 static inline uint32_t* get_pt(uint32_t* pd, uint32_t index) {
     return ((uint32_t *)pd) + (0x400 * index);
 }
 
-/*static uint32_t get_physaddr(void *virtualaddr) {
+static uint32_t get_physaddr(void *virtualaddr) {
     uint32_t pdindex = (uint32_t)virtualaddr >> 22;
     uint32_t ptindex = (uint32_t)virtualaddr >> 12 & 0x03FF;
 
@@ -70,7 +77,7 @@ static inline uint32_t* get_pt(uint32_t* pd, uint32_t index) {
     // Here you need to check whether the PT entry is present.
 
     return ((pt[ptindex] & ~0xFFF) + ((uint32_t)virtualaddr & 0xFFF));
-}*/
+}
 
 static inline uint32_t compute_virtual_address(uint32_t pdi, uint32_t pti, uint32_t offset) {
     return ((pdi << 22) | (pti << 12) | (offset & 0xFFF));
@@ -151,6 +158,32 @@ void print_cr0_cr3() {
     kprint("CR3 = ");
     kprint_num_u32(cr3);
     kprint("\n");
+}
+
+static void mmap(uint32_t vaddr, uint32_t phys_addr, uint32_t flags) {
+    // Make sure that both addresses are page-aligned.
+
+    uint32_t pdindex = (uint32_t)vaddr >> 22;
+    uint32_t ptindex = (uint32_t)vaddr >> 12 & 0x03FF;
+
+    uint32_t *pd = REC_PAGEDIR;
+    // Here you need to check whether the PD entry is present.
+    // When it is not present, you need to create a new empty PT and
+    // adjust the PDE accordingly.
+    if((pageDir[pdindex] & PRESENT_FLAG) == 0) {
+        uint32_t p = pmm_alloc_page_frame();
+        pageDir[pdindex] = p | PRESENT_FLAG | W_FLAG;
+        flush_tlb();
+    }
+
+    uint32_t *pt = ((uint32_t *)0xFFC00000) + (0x400 * pdindex);
+    // Here you need to check whether the PT entry is present.
+    // When it is, then there is already a mapping present. What do you do now?
+
+    pt[ptindex] = ((uint32_t)physaddr) | (flags & 0xFFF) | 0x01; // Present
+
+    // Now you need to flush the entry in the TLB
+    // or you might not notice the change.
 }
 
 static void mmap(uint32_t vaddr, uint32_t phys_addr, uint32_t flags) {
