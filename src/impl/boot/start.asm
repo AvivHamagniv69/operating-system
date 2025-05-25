@@ -18,31 +18,88 @@ stack_bottom:
 stack_top:
 
 section .boot
+extern _kernel_start
+extern _kernel_end
 global _start
 _start:
-    MOV ecx, (initial_page_dir - 0xC0000000)
-    MOV cr3, ecx
-    MOV ecx, cr4
-    OR ecx, 0x10
-    MOV cr4, ecx
-    MOV ecx, cr0
-    OR ecx, 0x80000001
-    MOV cr0, ecx
-    JMP higher_half
+    ; EDI = table0 - 0xC0000000
+    mov edi, table0 - 0xC0000000
+
+    ; ESI = 0
+    xor esi, esi
+
+    ; ECX = 1023
+    mov ecx, 1023
+
+.loop:
+    ; if (ESI < _kernel_start) jump to .skip
+    cmp esi, _kernel_start
+    jl .skip
+
+    ; if (ESI >= _kernel_end - 0xC0000000) jump to .done
+    cmp esi, _kernel_end - 0xC0000000
+    jge .done
+
+    ; EDX = ESI | 0x3
+    mov edx, esi
+    or edx, 0x3
+
+    ; [EDI] = EDX
+    mov [edi], edx
+
+.skip:
+    ; ESI += 4096
+    add esi, 4096
+
+    ; EDI += 4
+    add edi, 4
+
+    ; loop again (manual loop since ECX not used here for counting)
+    jmp .loop
+
+.done:
+    ; table0[1023] = 0x000B8000 | 0x003
+    mov dword [table0 - 0xC0000000 + 1023 * 4], 0x000B8003
+
+    ; initial_page_dir[0] = (table0 - 0xC0000000) | 0x003
+    mov dword [initial_page_dir - 0xC0000000 + 0], (table0 - 0xC0000000 + 0x003)
+
+    ; initial_page_dir[768] = (table0 - 0xC0000000) | 0x003
+    mov dword [initial_page_dir - 0xC0000000 + 768 * 4], (table0 - 0xC0000000 + 0x003)
+
+    ; ECX = initial_page_dir - 0xC0000000
+    mov ecx, initial_page_dir - 0xC0000000
+
+    ; load CR3
+    mov cr3, ecx
+
+    ; ECX = CR0
+    mov ecx, cr0
+
+    ; set PG and PE bits (0x80000000 | 0x00010000)
+    or ecx, 0x80010000
+
+    ; write back to CR0
+    mov cr0, ecx
+
+    ; jump to label .enable_paging (flat mode continue execution)
+    lea ecx, [higher_half]
+    jmp ecx
 
 section .text
+extern kmain
 higher_half:
-    MOV esp, stack_top
-    PUSH ebx
-    PUSH eax
-    XOR ebp, ebp
-    extern kmain
-    CALL kmain
+    mov dword [initial_page_dir], 0
+    mov ecx, cr3
+    mov cr3, ecx
+    mov esp, stack_top
+    call kmain
+    
 halt:
     hlt
     JMP halt
 
-section .data
+section .bss
 align 4096
 global initial_page_dir
 initial_page_dir:
