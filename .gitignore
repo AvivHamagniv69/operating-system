@@ -1,0 +1,4 @@
+*.log
+*.iso
+/tartets/iso/boot/*.bin
+/build/object_files/*.o

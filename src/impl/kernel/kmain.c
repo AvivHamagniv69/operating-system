@@ -15,15 +15,14 @@ extern uint32_t endkernel;
 
 void kmain(uint32_t magic, uint32_t addr) {
     multiboot_info_t* boot_info = (multiboot_info_t*)addr;
-    clear_screen();
-
     init_pit();
     init_gdt();
     init_idt();
+    init_mem(boot_info->mem_lower * 1024, boot_info->mem_upper * 1024);
+    clear_screen();
+
     init_keyboard();
     kprint("hello world\n");
-
-    init_mem(boot_info->mem_lower * 1024, boot_info->mem_upper * 1024);
    
     uint32_t* b = (uint32_t*) kmalloc(sizeof(uint32_t));
     *b = 69;

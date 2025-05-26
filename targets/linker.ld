@@ -11,15 +11,20 @@ SECTIONS
         *(.multiboot)
     }
 
-    .note.gnu.build-id ALIGN(4K): {
-        *(.note.gnu.build-id)
+    .bss ALIGN(4K): {
+        *(COMMON)
+        *(.bss)
     }
+
+    /*.note.gnu.build-id ALIGN(4K): {
+        *(.note.gnu.build-id)
+    }*/
 
     .boot ALIGN(4K): {
         *(.boot)
     }
 
-    . += 0xC0000000;
+    . = 0xC0000000;
 
     .text ALIGN(4K): AT(ADDR(.text) - 0xC0000000) {
         *(.text)
