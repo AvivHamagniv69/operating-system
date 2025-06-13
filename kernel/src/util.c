@@ -2,26 +2,19 @@
 #include <stddef.h>
 #include "util.h"
 
-// Halt and catch fire function.
-static void hcf(void) {
-    for (;;) {
-#if defined (__x86_64__)
-        asm ("hlt");
-#elif defined (__aarch64__) || defined (__riscv)
-        asm ("wfi");
-#elif defined (__loongarch64)
-        asm ("idle 0");
-#endif
-    }
-}
-
-uint32_t ceil_div(uint32_t a, uint32_t b)  {
+uint64_t ceil_div(uint64_t a, uint64_t b)  {
     return (a + b - 1)/b;
 }
 
-void *memcpy(void *dest, const void *src, size_t n) {
-    uint8_t *pdest = (uint8_t *)dest;
-    const uint8_t *psrc = (const uint8_t *)src;
+// GCC and Clang reserve the right to generate calls to the following
+// 4 functions even if they are not directly called.
+// Implement them as the C specification mandates.
+// DO NOT remove or rename these functions, or stuff will eventually break!
+// They CAN be moved to a different .c file.
+
+void *memcpy(void *restrict dest, const void *restrict src, size_t n) {
+    uint8_t *restrict pdest = (uint8_t *restrict)dest;
+    const uint8_t *restrict psrc = (const uint8_t *restrict)src;
 
     for (size_t i = 0; i < n; i++) {
         pdest[i] = psrc[i];
@@ -70,8 +63,15 @@ int memcmp(const void *s1, const void *s2, size_t n) {
     return 0;
 }
 
+// Halt and catch fire function.
+void hcf(void) {
+    for (;;) {
+        __asm__ volatile ("hlt");
+    }
+}
+
 void outb(uint16_t port, uint8_t val) {
-    __asm__ __volatile__ ("outb %1, %0" : : "Nd" (port), "a" (val): "memory");
+    __asm__ volatile ("outb %1, %0" : : "Nd" (port), "a" (val): "memory");
 }
 
 uint8_t inb(uint16_t port) {
