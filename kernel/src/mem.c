@@ -14,7 +14,7 @@
 __attribute__((used, section(".limine_requests")))
 static volatile struct limine_paging_mode_request paging_request = {
     .id = LIMINE_PAGING_MODE_REQUEST,
-    .revision = 0,
+    .revision = 3,
     .mode = LIMINE_PAGING_MODE_DEFAULT,
     .max_mode = LIMINE_PAGING_MODE_MAX,
     .min_mode = LIMINE_PAGING_MODE_MIN,
@@ -23,14 +23,14 @@ static volatile struct limine_paging_mode_request paging_request = {
 __attribute__((used, section(".limine_requests")))
 static volatile struct limine_memmap_request memmap_request = {
     .id = LIMINE_MEMMAP_REQUEST,
-    .revision = 0
+    .revision = 3
 };
 
 // crahses the system, for now replacing with a constant
 /*__attribute__((used, section(".limine_requests")))
 static volatile struct limine_entry_point_request entry_point_request = {
     .id = LIMINE_ENTRY_POINT_REQUEST,
-    .revision = 0
+    .revision = 3
 };*/
 
 typedef struct {

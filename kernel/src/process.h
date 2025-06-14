@@ -9,6 +9,6 @@ typedef enum Status {
 
 typedef struct Process {
     Status status;
-    regs* context;
+    Regs* context;
     struct Process* next;
 } Process;

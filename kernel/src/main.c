@@ -7,6 +7,7 @@
 #include "idt.h"
 #include "print.h"
 #include "serial.h"
+#include "pit.h"
 
 __attribute__((used, section(".limine_requests")))
 static volatile LIMINE_BASE_REVISION(3);
@@ -31,7 +32,9 @@ void kmain(void) {
     serial_init();
     kprint_init();
     idt_init();
-    int b = 1/0;
+    pit_init();
+    __asm__ volatile("int $0x80");
+    hcf();
     paging_init();
 
     serial_log("nigger num: \n");

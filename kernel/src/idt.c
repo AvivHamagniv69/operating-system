@@ -3,11 +3,15 @@
 #include "limine.h"
 #include "serial.h"
 
+extern uint64_t* isr_stub_table[];
 idt_entry_t idt[256] __attribute__((aligned(0x10))) = {0};
-
 bool vectors[256] = {0};
 
-void exception_handler(regs* regs) {
+extern uint64_t* irq_stub_table[];
+
+static void* irq_routines[256] = {0};
+
+void exception_handler(Regs* regs) {
     static char* exception_messages[] = {
         "division by zero",
         "debug",
@@ -43,21 +47,16 @@ void exception_handler(regs* regs) {
         "reserved",
     };
 
-    /*if(regs->int_no < 32) {
-        kprint(exception_messages[regs->int_no]);
-        kprint("\n");
-        kprint("exception! sytem halted\n");
-        kprint("regs:\n");
-        kprint("cr2: ");
-        kprint_num_u32(regs->cr2);
-        kprint("\n");
-        kprint("err_code: ");
-        kprint_num_u32(regs->err_code);
-
-        for(;;);
-    }*/
-    serial_log("exception!\n");
-    hcf();
+    if(regs->vector_number < 32) {
+        serial_log(exception_messages[regs->vector_number]);
+        serial_log("\n");
+        serial_log("exception! sytem halted\n");
+        serial_log("regs:\n");
+        serial_log("\n");
+        serial_log("err_code: ");
+        serial_log_num_unsigned(regs->error_code);
+        hcf();
+    }
 }
 
 void idt_set_descriptor(uint8_t vector, void* isr, uint8_t flags) {
@@ -75,6 +74,19 @@ void idt_set_descriptor(uint8_t vector, void* isr, uint8_t flags) {
     entry->reserved = 0;
 }
 
+static void irq_remap(void) {
+    outb(0x20, 0x11);
+    outb(0xA0, 0x11);
+    outb(0x21, 0x20);
+    outb(0xA1, 0x28);
+    outb(0x21, 0x04);
+    outb(0xA1, 0x02);
+    outb(0x21, 0x01);
+    outb(0xA1, 0x01);
+    outb(0x21, 0x0);
+    outb(0xA1, 0x0);
+}
+
 void idt_init() {
     idtr_t idtr = {0};
     idtr.limit = (uint16_t)(sizeof(idt) - 1);
@@ -84,8 +96,36 @@ void idt_init() {
         idt_set_descriptor(vector, isr_stub_table[vector], 0x8E);
         vectors[vector] = true;
     }
+    for (uint8_t vector = 32; vector < 255; vector++) {
+        idt_set_descriptor(vector, irq_stub_table[vector-32], 0x8E);
+        vectors[vector] = true;
+    }
+    irq_remap();
 
-    void* i = (void*)&idtr;
-    __asm__ volatile("lidt %0" :: "m"(i));
+    __asm__ volatile("lidt %0" : : "m"(idtr));
     __asm__ volatile ("sti"); // set the interrupt flag
+
+    serial_log("sizeof idtr_t: ");
+    serial_log_num_unsigned(sizeof(idtr_t));
+    serial_log("\n");
+}
+
+void irq_install_handler(uint8_t irq, void (*handler)(Regs* regs)) {
+    irq_routines[irq] = handler;
+}
+
+void irq_uninstall_handler(uint8_t irq) {
+    irq_routines[irq] = 0;
+}
+
+void irq_handler(Regs* regs) {
+    void (*handler)(Regs* regs) = irq_routines[regs->vector_number];
+    if(handler) {
+        handler(regs);
+    }
+
+    if(regs->vector_number >= 40) {
+        outb(0xA0, 0x20);
+    }
+    outb(0x20, 0x20);
 }

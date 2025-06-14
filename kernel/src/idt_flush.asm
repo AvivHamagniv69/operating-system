@@ -1,42 +1,49 @@
 %macro isr_err_stub 1
 isr_stub_%+%1:
-    push rax
-    push rbx
-    push r14
-    push r15
-
-    call exception_handler
-    
-    pop r15
-    pop r14
-    pop rbx
-    pop rax
-
-    add rsp, 16
-    
-    iretq
+    push 0
+    push %1
+    jmp isr_common_stub
 %endmacro
 
 %macro isr_no_err_stub 1
 isr_stub_%+%1:
-    push rax
-    push rbx
-    push r14
-    push r15
-
-    call exception_handler
-    
-    pop r15
-    pop r14
-    pop rbx
-    pop rax
-
-    ; add rsp, 16
-    
-    iretq
+    push 0
+    push %1
+    jmp isr_common_stub
 %endmacro
 
 extern exception_handler
+isr_common_stub:
+    push rax 
+    push rbx
+    push rcx
+    push rdx
+    push rdi
+    push rsi
+    push r8
+    push r9
+    push r10
+    push r11
+
+    cld
+    lea rdi, [rsp]
+
+    call exception_handler
+    
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    pop rsi
+    pop rdi
+    pop rdx      
+    pop rcx
+    pop rbx
+    pop rax
+
+    add rsp, 0x10
+    iretq
+
 isr_no_err_stub 0
 isr_no_err_stub 1
 isr_no_err_stub 2
@@ -77,3 +84,54 @@ isr_stub_table:
     dq isr_stub_%+i ; use DQ instead if targeting 64-bit
 %assign i i+1 
 %endrep
+
+; irq's definition
+%assign i 32
+%rep 223
+irq_%+i:
+    cli
+    push 0
+    push i
+    jmp irq_common_stub
+    %assign i i+1
+%endrep
+
+global irq_stub_table:
+irq_stub_table:
+%assign i 32
+%rep 223
+    dq irq_%+i
+    %assign i i+1
+%endrep
+
+extern irq_handler
+irq_common_stub:
+    push rax 
+    push rbx
+    push rcx
+    push rdx
+    push rdi
+    push rsi
+    push r8
+    push r9
+    push r10
+    push r11
+
+    cld
+    lea rdi, [rsp]
+
+    call irq_handler
+    
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    pop rsi
+    pop rdi
+    pop rdx      
+    pop rcx
+    pop rbx
+    pop rax
+
+    add rsp, 0x10
+    iretq

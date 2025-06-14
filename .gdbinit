@@ -1,2 +1,3 @@
 file targets/iso/boot/kernel.bin
-target remote localhost:1234
+target remote:1234
+l

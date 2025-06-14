@@ -19,9 +19,14 @@ typedef struct {
 } __attribute__((packed)) idtr_t;
 
 typedef struct {
-    uint64_t r15;
-    uint64_t r14;
-    //other pushed registers
+    uint64_t r11;
+    uint64_t r10;
+    uint64_t r9;
+    uint64_t r8;
+    uint64_t rsi;
+    uint64_t rdi;
+    uint64_t rdx;      
+    uint64_t rcx;
     uint64_t rbx;
     uint64_t rax;
 
@@ -33,16 +38,18 @@ typedef struct {
     uint64_t iret_flags;
     uint64_t iret_rsp;
     uint64_t iret_ss;
-} __attribute__((packed)) regs;
+} __attribute__((packed)) Regs;
 
 extern idt_entry_t idt[256] __attribute__((aligned(0x10))); // Create an array of IDT entries; aligned for performance
 
 extern bool vectors[256];
 
-extern void* isr_stub_table[];
-
-void exception_handler(regs* regs);
+void exception_handler(Regs* regs);
 
 void idt_set_descriptor(uint8_t vector, void* isr, uint8_t flags);
 
 void idt_init();
+
+void irq_install_handler(uint8_t irq, void (*handler)(Regs* regs));
+
+void irq_uninstall_handler(uint8_t irq);

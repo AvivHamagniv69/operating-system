@@ -1,6 +1,4 @@
 *.log
 *.iso
 kernel-deps
-/tartets/iso/boot/*.bin
-/build/object_files/*.o
 .vscode
