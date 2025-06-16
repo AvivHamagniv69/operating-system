@@ -32,7 +32,7 @@ void kmain(void) {
     serial_init();
     kprint_init();
     idt_init();
-    pit_init();
+    // pit_init();
     __asm__ volatile ("div %0" :: "r"(0));
     paging_init();
 

@@ -11,12 +11,12 @@ typedef struct {
 	uint16_t    isr_mid;      // The higher 16 bits of the lower 32 bits of the ISR's address
 	uint32_t    isr_high;     // The higher 32 bits of the ISR's address
 	uint32_t    reserved;     // Set to zero
-} __attribute__((packed)) idt_entry_t;
+} __attribute__((packed)) IdtEntry;
 
 typedef struct {
 	uint16_t	limit;
 	uint64_t	base;
-} __attribute__((packed)) idtr_t;
+} __attribute__((packed)) Idtr;
 
 typedef struct {
     uint64_t r11;
@@ -40,13 +40,11 @@ typedef struct {
     uint64_t iret_ss;
 } __attribute__((packed)) Regs;
 
-extern idt_entry_t idt[256] __attribute__((aligned(0x10))); // Create an array of IDT entries; aligned for performance
-
 extern bool vectors[256];
 
-void exception_handler(Regs* regs);
+void exception_handler(void);
 
-void idt_set_descriptor(uint8_t vector, uint64_t isr, uint8_t flags);
+void idt_set_descriptor(uint8_t vector, void* isr, uint8_t flags);
 
 void idt_init();
 
