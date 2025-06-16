@@ -23,12 +23,20 @@ isr_common_stub:
     push r9
     push r10
     push r11
+    push r12
+    push r13
+    push r14
+    push r15
 
     cld
     mov rdi, rsp
 
     call exception_handler
     
+    pop r15
+    pop r14
+    pop r13
+    pop r12
     pop r11
     pop r10
     pop r9
@@ -55,12 +63,20 @@ irq_common_stub:
     push r9
     push r10
     push r11
+    push r12
+    push r13
+    push r14
+    push r15
 
     cld
     mov rdi, rsp
 
     call irq_handler
     
+    pop r15
+    pop r14
+    pop r13
+    pop r12
     pop r11
     pop r10
     pop r9
@@ -110,7 +126,7 @@ isr_no_err_stub 31
 
 ; irq's definition
 %assign i 32
-%rep 223
+%rep 224
 irq_%+i:
     cli
     push 0

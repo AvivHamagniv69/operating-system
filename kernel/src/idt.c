@@ -113,12 +113,12 @@ void irq_uninstall_handler(uint8_t irq) {
 }
 
 void irq_handler(Regs* regs) {
-    void (*handler)(Regs* regs) = irq_routines[regs->vector_number];
+    void (*handler)(Regs* regs) = irq_routines[regs->vector_number-32];
     if(handler) {
         handler(regs);
     }
 
-    if(regs->vector_number >= 40) {
+    if(regs->vector_number-32 >= 40) {
         outb(0xA0, 0x20);
     }
     outb(0x20, 0x20);
