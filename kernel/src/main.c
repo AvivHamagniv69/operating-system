@@ -33,12 +33,8 @@ void kmain(void) {
     kprint_init();
     idt_init();
     pit_init();
-    __asm__ volatile("int $0x80");
-    hcf();
+    __asm__ volatile ("div %0" :: "r"(0));
     paging_init();
-
-    serial_log("nigger num: \n");
-    //serial_log_num_signed(-1234);
 
     int* a = kmalloc(sizeof(int));
     *a = 69;

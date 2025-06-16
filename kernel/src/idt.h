@@ -46,7 +46,7 @@ extern bool vectors[256];
 
 void exception_handler(Regs* regs);
 
-void idt_set_descriptor(uint8_t vector, void* isr, uint8_t flags);
+void idt_set_descriptor(uint8_t vector, uint64_t isr, uint8_t flags);
 
 void idt_init();
 

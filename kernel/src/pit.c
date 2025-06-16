@@ -1,6 +1,7 @@
 #include "idt.h"
 #include "serial.h"
 #include "util.h"
+#include "process.h"
 
 /* This will keep track of how many ticks that the system
 *  has been running for */
@@ -21,6 +22,7 @@ void timer_phase(int hz) {
 static void timer_handler(Regs* r) {
     /* Increment our 'tick count' */
     timer_ticks++;
+    
 
     serial_log("timer ticked\n");
 }

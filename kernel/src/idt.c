@@ -4,10 +4,10 @@
 #include "serial.h"
 
 extern uint64_t* isr_stub_table[];
+extern uint64_t* irq_stub_table[];
+
 idt_entry_t idt[256] __attribute__((aligned(0x10))) = {0};
 bool vectors[256] = {0};
-
-extern uint64_t* irq_stub_table[];
 
 static void* irq_routines[256] = {0};
 
@@ -47,10 +47,10 @@ void exception_handler(Regs* regs) {
         "reserved",
     };
 
+    serial_log("excpetion! system halted\n");
     if(regs->vector_number < 32) {
         serial_log(exception_messages[regs->vector_number]);
         serial_log("\n");
-        serial_log("exception! sytem halted\n");
         serial_log("regs:\n");
         serial_log("\n");
         serial_log("err_code: ");
@@ -59,13 +59,11 @@ void exception_handler(Regs* regs) {
     }
 }
 
-void idt_set_descriptor(uint8_t vector, void* isr, uint8_t flags) {
-    uint64_t isr_addr = (uint64_t)isr;
-
+void idt_set_descriptor(uint8_t vector, uint64_t isr, uint8_t flags) {
     idt_entry_t* entry = &idt[vector];
-    entry->isr_low = isr_addr & 0xFFFF;
-    entry->isr_mid = (isr_addr >> 16) & 0xFFFF;
-    entry->isr_high = isr_addr >> 32;
+    entry->isr_low = isr & 0xFFFF;
+    entry->isr_mid = (isr >> 16) & 0xFFFF;
+    entry->isr_high = isr >> 32;
     //your code selector may be different!
     entry->kernel_cs = 0x8;
     entry->attributes = 0b1110 | ((flags & 0b11) << 5) |(1 << 7);
@@ -93,21 +91,17 @@ void idt_init() {
     idtr.base = (uint64_t)idt;
 
     for (uint8_t vector = 0; vector < 32; vector++) {
-        idt_set_descriptor(vector, isr_stub_table[vector], 0x8E);
+        idt_set_descriptor(vector, (uint64_t)isr_stub_table[vector], 0x8E);
         vectors[vector] = true;
     }
-    for (uint8_t vector = 32; vector < 255; vector++) {
-        idt_set_descriptor(vector, irq_stub_table[vector-32], 0x8E);
+    for (uint16_t vector = 32; vector < 256; vector++) {
+        idt_set_descriptor(vector, (uint64_t)irq_stub_table[vector], 0x8E);
         vectors[vector] = true;
     }
     irq_remap();
 
     __asm__ volatile("lidt %0" : : "m"(idtr));
     __asm__ volatile ("sti"); // set the interrupt flag
-
-    serial_log("sizeof idtr_t: ");
-    serial_log_num_unsigned(sizeof(idtr_t));
-    serial_log("\n");
 }
 
 void irq_install_handler(uint8_t irq, void (*handler)(Regs* regs)) {

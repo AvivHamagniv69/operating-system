@@ -89,7 +89,7 @@ static inline PmmPtr addr_to_pmm_indexing(uint64_t addr) {
     // todo: check if correct
     PmmPtr p;
     p.index = addr / PAGE_SIZE / 64;
-    p.bit = addr / PAGE_SIZE;
+    p.bit = addr / PAGE_SIZE - p.index * 64;
     return p;
 }
 
@@ -162,7 +162,7 @@ static void pmm_init() {
             break;
         }
     }
-    memset(phys_mem_bitmap, 0x0, pmm_len);
+    memset(phys_mem_bitmap, 1, pmm_len);
 
     for(uint64_t i = 0; i < entries_count; i++) {
         struct limine_memmap_entry* entry = entries[i];
@@ -173,7 +173,7 @@ static void pmm_init() {
             
             for(uint64_t j = start.index; j < end.index; j++) {
                 uint64_t bit_end;
-                if(j+1 == end.index) {
+                if(j == end.index) {
                     bit_end = end.bit;
                 }
                 else {

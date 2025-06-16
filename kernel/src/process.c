@@ -1,8 +1,12 @@
 #include "process.h"
+#include "mem.h"
+#include "idt.h"
 
 Process* head_process;
 Process* current_process;
 
-void schedule() {
+Regs* schedule(Regs* context) {
+    current_process->context = context;
     current_process = current_process->next;
+    return current_process->context;
 }
