@@ -69,7 +69,6 @@ void idt_set_descriptor(uint8_t vector, void* isr, uint8_t flags) {
     descriptor->attributes     = flags;
     descriptor->isr_mid        = ((uint64_t)isr >> 16) & 0xFFFF;
     descriptor->isr_high       = ((uint64_t)isr >> 32) & 0xFFFFFFFF;
-    descriptor->reserved       = 0;
 }
 
 #define MASTER_CMD 0x20
