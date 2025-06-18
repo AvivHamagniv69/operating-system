@@ -3,3 +3,4 @@
 kernel-deps
 .vscode
 auto_make.sh
+kernel/src/*.psf

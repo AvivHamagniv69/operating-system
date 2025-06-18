@@ -24,7 +24,7 @@ all-hdd: $(IMAGE_NAME).hdd
 run: $(IMAGE_NAME).iso
 	qemu-system-x86_64 \
 		-d int \
-		-D qemu_log.txt \
+		-D qemu.log \
 		-no-reboot \
 		-serial stdio \
 		-M q35 \
