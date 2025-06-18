@@ -16,13 +16,47 @@ static volatile struct limine_framebuffer_request framebuffer_request = {
     .revision = 3
 };
 
+#define PSF1_FONT_MAGIC 0x0436
+
+typedef struct {
+    uint16_t magic; // Magic bytes for identification.
+    uint8_t font_mode; // PSF font mode.
+    uint8_t character_size; // PSF character size.
+} Psf1Header;
+
+#define PSF_FONT_MAGIC 0x864ab572
+
+typedef struct {
+    uint32_t magic;         /* magic bytes to identify PSF */
+    uint32_t version;       /* zero */
+    uint32_t header_size;    /* offset of bitmaps in file, 32 */
+    uint32_t flags;         /* 0 if there's no unicode table */
+    uint32_t num_glyph;      /* number of glyphs */
+    uint32_t bytes_per_glyph; /* size of each glyph */
+    uint32_t height;        /* height in pixels */
+    uint32_t width;         /* width in pixels */
+} PsfFont;
+
 static struct limine_framebuffer *framebuffer;
 
+extern int8_t _psf_start;
+uint16_t *unicode;
 static uint32_t* vram; // todo, check framebuffer model
 static uint64_t width;
 static uint64_t height;
 static uint64_t pitch;
 static uint16_t bits_per_pixel;
+
+void psf_init() {
+    uint16_t glyph = 0;
+    /* cast the address to PSF header struct */
+    PsfFont *font = (PsfFont*)&_psf_start;
+    /* is there a unicode table? */
+    if (font->flags == 0) {
+        unicode = NULL;
+        return; 
+    }
+}
 
 void kprint_init(void) {
     // Ensure we got a framebuffer.
@@ -39,6 +73,8 @@ void kprint_init(void) {
     height = framebuffer->height;
     pitch = framebuffer->pitch;
     bits_per_pixel = framebuffer->bpp;
+
+    psf_init();
 
     // Note: we assume the framebuffer model is RGB with 32-bit pixels.
     /*for (size_t i = 0; i < 100; i++) {

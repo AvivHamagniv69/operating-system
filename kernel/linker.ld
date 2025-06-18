@@ -34,6 +34,9 @@ SECTIONS
     . = ALIGN(CONSTANT(MAXPAGESIZE));
 
     .text : {
+        _psf_start = .;
+        KEEP(*obj/Lat2-VGA16.psf.o(.text))
+        _psf_end = .;
         *(.text .text.*)
     } :text
 

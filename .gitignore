@@ -2,3 +2,4 @@
 *.iso
 kernel-deps
 .vscode
+auto_make.sh

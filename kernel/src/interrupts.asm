@@ -11,6 +11,7 @@ isr_stub_%+%1:
 %endmacro
 
 extern exception_handler
+global isr_stub_0
 isr_no_err_stub 0
 isr_no_err_stub 1
 isr_no_err_stub 2

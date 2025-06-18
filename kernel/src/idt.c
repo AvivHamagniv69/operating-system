@@ -3,7 +3,7 @@
 #include "limine.h"
 #include "serial.h"
 
-extern void* isr_stub_table[];
+extern uint64_t* isr_stub_table[];
 
 static IdtEntry idt[256] __attribute__((aligned(0x10))) = {0}; // Create an array of IDT entries; aligned for performance
 static Idtr idtr;
@@ -64,7 +64,7 @@ void idt_set_descriptor(uint8_t vector, void* isr, uint8_t flags) {
     IdtEntry* descriptor = &idt[vector];
 
     descriptor->isr_low        = (uint64_t)isr & 0xFFFF;
-    descriptor->kernel_cs      = 0x8;
+    descriptor->kernel_cs      = 0x08;
     descriptor->ist            = 0;
     descriptor->attributes     = flags;
     descriptor->isr_mid        = ((uint64_t)isr >> 16) & 0xFFFF;
@@ -72,27 +72,36 @@ void idt_set_descriptor(uint8_t vector, void* isr, uint8_t flags) {
     descriptor->reserved       = 0;
 }
 
-static void irq_remap(void) {
-    outb(0x20, 0x11);
-    outb(0xA0, 0x11);
-    outb(0x21, 0x20);
-    outb(0xA1, 0x28);
-    outb(0x21, 0x04);
-    outb(0xA1, 0x02);
-    outb(0x21, 0x01);
-    outb(0xA1, 0x01);
-    outb(0x21, 0x0);
-    outb(0xA1, 0x0);
+#define MASTER_CMD 0x20
+#define MASTER_DATA 0x21
+#define SLAVE_CMD 0xA0
+#define SLAVE_DATA 0xA1
+
+static void pic8259_remap() {
+    outb(MASTER_CMD, 0x11);
+    outb(SLAVE_CMD, 0x11);
+    outb(MASTER_DATA, 0x20);
+    outb(SLAVE_DATA, 0x28);
+    outb(MASTER_DATA, 0x04);
+    outb(SLAVE_DATA, 0x02);
+    outb(MASTER_DATA, 0x01);
+    outb(SLAVE_DATA, 0x01);
+    outb(MASTER_DATA, 0x0);
+    outb(SLAVE_DATA, 0x0);
 }
 
 void idt_init() {
     idtr.base = (uintptr_t)&idt[0];
-    idtr.limit = (uint16_t)sizeof(IdtEntry) * 256 - 1;
+    idtr.limit = (uint16_t)sizeof(IdtEntry) * 256;
 
-    for (uint8_t vector = 0; vector < 32; vector++) {
+    idt_set_descriptor(0, isr_stub_table[0], 0x8E);
+    vectors[0] = true;
+
+    for (uint8_t vector = 1; vector < 32; vector++) {
         idt_set_descriptor(vector, isr_stub_table[vector], 0x8E);
         vectors[vector] = true;
     }
+    pic8259_remap();
 
     __asm__ volatile ("lidt %0" : : "m"(idtr)); // load the new IDT
     __asm__ volatile ("sti"); // set the interrupt flag

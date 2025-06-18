@@ -23,6 +23,8 @@ all-hdd: $(IMAGE_NAME).hdd
 .PHONY: run
 run: $(IMAGE_NAME).iso
 	qemu-system-x86_64 \
+		-d int \
+		-D qemu_log.txt \
 		-no-reboot \
 		-serial stdio \
 		-M q35 \

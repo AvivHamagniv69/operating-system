@@ -26,9 +26,9 @@ LDFLAGS :=
 
 # Ensure the dependencies have been obtained.
 ifneq ($(shell ( test '$(MAKECMDGOALS)' = clean || test '$(MAKECMDGOALS)' = distclean ); echo $$?),0)
-    ifeq ($(shell ( ! test -d freestnd-c-hdrs || ! test -d src/cc-runtime || ! test -f src/limine.h ); echo $$?),0)
-        $(error Please run the ./get-deps script first)
-    endif
+	ifeq ($(shell ( ! test -d freestnd-c-hdrs || ! test -d src/cc-runtime || ! test -f src/limine.h ); echo $$?),0)
+		$(error Please run the ./get-deps script first)
+	endif
 endif
 
 # Check if CC is Clang.
@@ -36,55 +36,56 @@ override CC_IS_CLANG := $(shell ! $(CC) --version 2>/dev/null | grep 'clang' >/d
 
 # If the C compiler is Clang, set the target as needed.
 ifeq ($(CC_IS_CLANG),1)
-    override CC += \
-        -target x86_64-unknown-none
+	override CC += \
+		-target x86_64-unknown-none
 endif
 
 # Internal C flags that should not be changed by the user.
 override CFLAGS += \
-    -O0 \
-    -Wall \
-    -Wextra \
-    -std=gnu11 \
-    -nostdinc \
-    -ffreestanding \
-    -fno-stack-protector \
-    -fno-stack-check \
-    -fno-PIC \
-    -ffunction-sections \
-    -fdata-sections \
-    -m64 \
-    -march=x86-64 \
-    -mno-80387 \
-    -mno-mmx \
-    -mno-sse \
-    -mno-sse2 \
-    -mno-red-zone \
-    -mcmodel=kernel
+	-O0 \
+	-Wall \
+	-Wextra \
+	-std=gnu11 \
+	-nostdinc \
+	-ffreestanding \
+	-fno-stack-protector \
+	-fno-stack-check \
+	-fno-PIC \
+	-ffunction-sections \
+	-fdata-sections \
+	-m64 \
+	-march=x86-64 \
+	-mno-80387 \
+	-mno-mmx \
+	-mno-sse \
+	-mno-sse2 \
+	-mno-red-zone \
+	-mcmodel=kernel
 
 # Internal C preprocessor flags that should not be changed by the user.
 override CPPFLAGS := \
-    -I src \
-    -isystem freestnd-c-hdrs \
-    $(CPPFLAGS) \
-    -DLIMINE_API_REVISION=3 \
-    -MMD \
-    -MP
+	-I src \
+	-isystem freestnd-c-hdrs \
+	$(CPPFLAGS) \
+	-DLIMINE_API_REVISION=3 \
+	-MMD \
+	-MP
 
 # Internal nasm flags that should not be changed by the user.
 override NASMFLAGS += \
-    -Wall \
-    -f elf64
+	-g \
+	-Wall \
+	-f elf64
 
 # Internal linker flags that should not be changed by the user.
 override LDFLAGS += \
-    -Wl,-m,elf_x86_64 \
-    -Wl,--build-id=none \
-    -nostdlib \
-    -static \
-    -z max-page-size=0x1000 \
-    -Wl,--gc-sections \
-    -T linker.ld
+	-Wl,-m,elf_x86_64 \
+	-Wl,--build-id=none \
+	-nostdlib \
+	-static \
+	-z max-page-size=0x1000 \
+	-Wl,--gc-sections \
+	-T linker.ld
 
 # Use "find" to glob all *.c, *.S, and *.asm files in the tree and obtain the
 # object and header dependency file names.
@@ -92,7 +93,9 @@ override SRCFILES := $(shell cd src && find -L * -type f | LC_ALL=C sort)
 override CFILES := $(filter %.c,$(SRCFILES))
 override ASFILES := $(filter %.S,$(SRCFILES))
 override NASMFILES := $(filter %.asm,$(SRCFILES))
-override OBJ := $(addprefix obj/,$(CFILES:.c=.c.o) $(ASFILES:.S=.S.o) $(NASMFILES:.asm=.asm.o))
+#override BDFFILES := $(filter %.bdf,$(SRCFILES))
+override PSFFILES := $(filter %.psf,$(SRCFILES))
+override OBJ := $(addprefix obj/,$(CFILES:.c=.c.o) $(ASFILES:.S=.S.o) $(NASMFILES:.asm=.asm.o) $(PSFFILES:.psf=.psf.o))
 override HEADER_DEPS := $(addprefix obj/,$(CFILES:.c=.c.d) $(ASFILES:.S=.S.d))
 
 # Default target. This must come first, before header dependencies.
@@ -121,6 +124,14 @@ obj/%.S.o: src/%.S GNUmakefile
 obj/%.asm.o: src/%.asm GNUmakefile
 	mkdir -p "$$(dirname $@)"
 	nasm $(NASMFLAGS) $< -o $@
+
+obj/%.bdf.o: src/%.bdf GNUmakefile
+	mkdir -p "$$(dirname $@)"
+	objcopy -O elf64-x86-64 -B i386 -I binary $< $@
+
+obj/%.psf.o: src/%.psf GNUmakefile
+	mkdir -p "$$(dirname $@)"
+	objcopy -O elf64-x86-64 -B i386 -I binary $< $@
 
 # Remove object files and the final executable.
 .PHONY: clean
