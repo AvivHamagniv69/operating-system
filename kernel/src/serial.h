@@ -9,4 +9,6 @@ void serial_log_num_unsigned(uint64_t num);
 
 void serial_log_num_signed(int64_t num);
 
+void write_serial(char a);
+
 void serial_log(char* str);

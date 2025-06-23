@@ -8,6 +8,7 @@
 #include "print.h"
 #include "serial.h"
 #include "pit.h"
+#include "ps2.h"
 
 __attribute__((used, section(".limine_requests")))
 static volatile LIMINE_BASE_REVISION(3);
@@ -32,12 +33,15 @@ void kmain(void) {
     serial_init();
     kprint_init();
     idt_init();
-    // pit_init();
-    __asm__ volatile ("div %0" :: "r"(0));
+    pit_init();
+    init_keyboard();
+    //__asm__ volatile ("div %0" :: "r"(0));
     paging_init();
 
-    int* a = kmalloc(sizeof(int));
-    *a = 69;
+    //unsigned int* a = kmalloc(sizeof(unsigned int));
+    //*a = 69;
+    serial_log("num test: ");
+    //serial_log_num_unsigned(*a);
     
     // We're done, just hang...
     hcf();

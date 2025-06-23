@@ -20,6 +20,10 @@ typedef struct {
 } __attribute__((packed)) Idtr;
 
 typedef struct {
+    uint64_t r15;
+    uint64_t r14;
+    uint64_t r13;
+    uint64_t r12;
     uint64_t r11;
     uint64_t r10;
     uint64_t r9;
@@ -43,7 +47,7 @@ typedef struct {
 
 extern bool vectors[256];
 
-void exception_handler(void);
+void exception_handler(Regs* regs);
 
 void idt_set_descriptor(uint8_t vector, void* isr, uint8_t flags);
 

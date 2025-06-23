@@ -7,9 +7,14 @@ typedef enum Status {
     DEAD,
 } Status;
 
+#define NAME_MAX_LEN 8
+
+typedef struct Process Process;
 typedef struct Process {
-    uint64_t id;
+    uint64_t pid;
     Status status;
-    Regs* context;
-    struct Process* next;
-} Process;
+    Regs context;
+    void* root_page_table;
+    Process* next;
+    char name[NAME_MAX_LEN]
+};

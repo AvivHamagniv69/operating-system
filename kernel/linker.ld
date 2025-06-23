@@ -25,32 +25,46 @@ SECTIONS
 
     /* Define a section to contain the Limine requests and assign it to its own PHDR */
     .limine_requests : {
+        limine_start = .;
+
         KEEP(*(.limine_requests_start))
         KEEP(*(.limine_requests))
         KEEP(*(.limine_requests_end))
+
+        limine_end = .;
     } :limine_requests
 
     /* Move to the next memory page for .text */
     . = ALIGN(CONSTANT(MAXPAGESIZE));
 
     .text : {
+        text_start = .;
+
         _psf_start = .;
         KEEP(*obj/Lat2-VGA16.psf.o(.text))
         _psf_end = .;
         *(.text .text.*)
+
+        text_end = .;
     } :text
 
     /* Move to the next memory page for .rodata */
     . = ALIGN(CONSTANT(MAXPAGESIZE));
 
     .rodata : {
+        rodata_start = .;
+
         *(.rodata .rodata.*)
+
+        rodata_end = .;
     } :rodata
 
     /* Move to the next memory page for .data */
     . = ALIGN(CONSTANT(MAXPAGESIZE));
 
     .data : {
+        data_start = .;
+
         *(.data .data.*)
     } :data
 
@@ -61,6 +75,8 @@ SECTIONS
     .bss : {
         *(.bss .bss.*)
         *(COMMON)
+
+        data_end = .;
     } :data
 
     /* Discard .note.* and .eh_frame* since they may cause issues on some hosts. */

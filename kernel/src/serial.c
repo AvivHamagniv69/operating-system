@@ -29,7 +29,7 @@ static inline bool is_transmit_empty(void) {
 	return inb(COM1 + 5) & 0x20;
 }
  
-static inline void write_serial(char a) {
+void write_serial(char a) {
 	while (!is_transmit_empty());
  
 	outb(COM1, a);
@@ -42,19 +42,35 @@ void serial_log(char* str) {
     }
 }
 
-void serial_log_num_unsigned(uint64_t num) {
+static void serial_log_num_unsigned_recursive(const uint64_t num) {
     if(num == 0) {
         return;
     }
-    serial_log_num_unsigned(num / 10);
+    serial_log_num_unsigned_recursive(num / 10);
     write_serial('0' + (num % 10));
 }
 
-void serial_log_num_signed(int64_t num) {
+void serial_log_num_unsigned(uint64_t num) {
+    if(num == 0) {
+        write_serial('0');
+        return;
+    }
+    serial_log_num_unsigned_recursive(num);
+}
+
+static void serial_log_num_signed_recursive(const int64_t num) {
     if(num == 0) {
         write_serial('-');
         return;
     }
-    serial_log_num_signed(num / 10);
+    serial_log_num_signed_recursive(num / 10);
     write_serial('0' + (num % 10));
+}
+
+void serial_log_num_signed(const int64_t num) {
+    if(num == 0) {
+        write_serial('0');
+        return;
+    }
+    serial_log_num_signed_recursive(num);
 }

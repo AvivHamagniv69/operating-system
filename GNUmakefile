@@ -23,6 +23,7 @@ all-hdd: $(IMAGE_NAME).hdd
 .PHONY: run
 run: $(IMAGE_NAME).iso
 	qemu-system-x86_64 \
+		-no-reboot \
 		-d int \
 		-D qemu.log \
 		-no-reboot \
