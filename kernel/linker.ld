@@ -38,32 +38,32 @@ SECTIONS
     . = ALIGN(CONSTANT(MAXPAGESIZE));
 
     .text : {
-        text_start = .;
+        _text_start = .;
 
         _psf_start = .;
         KEEP(*obj/Lat2-VGA16.psf.o(.text))
         _psf_end = .;
         *(.text .text.*)
 
-        text_end = .;
+        _text_end = .;
     } :text
 
     /* Move to the next memory page for .rodata */
     . = ALIGN(CONSTANT(MAXPAGESIZE));
 
     .rodata : {
-        rodata_start = .;
+        _rodata_start = .;
 
         *(.rodata .rodata.*)
 
-        rodata_end = .;
+        _rodata_end = .;
     } :rodata
 
     /* Move to the next memory page for .data */
     . = ALIGN(CONSTANT(MAXPAGESIZE));
 
     .data : {
-        data_start = .;
+        _data_start = .;
 
         *(.data .data.*)
     } :data
@@ -76,7 +76,8 @@ SECTIONS
         *(.bss .bss.*)
         *(COMMON)
 
-        data_end = .;
+        _data_end = .;
+        _kernel_virt_end = .;
     } :data
 
     /* Discard .note.* and .eh_frame* since they may cause issues on some hosts. */

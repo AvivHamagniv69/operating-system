@@ -32,6 +32,12 @@ static volatile struct limine_hhdm_request hhdm_request = {
 	.revision = 3
 };
 
+__attribute__((used, section(".limine_requests")))
+static volatile struct limine_executable_address_request exe_addr_request = {
+	.id = LIMINE_EXECUTABLE_ADDRESS_REQUEST,
+	.revision = 3
+};
+
 // crahses the system, for now replacing with a constant
 /*__attribute__((used, section(".limine_requests")))
 static volatile struct limine_entry_point_request entry_point_request = {
@@ -51,6 +57,8 @@ typedef struct {
 #define FLAG_READ       (0 << 1)
 #define FLAG_SUPERVISOR (0 << 2)
 #define FLAG_USER       (1 << 2)
+#define PAGING_WRITETHROUGH (1 << 3)
+#define PAGING_PHYS_MASK (0x00FFFFFFF000UL)
 
 #define PAGE_SIZE 4096
 #define ALIGN(l) ((((l) + PAGE_SIZE - 1)/PAGE_SIZE)*PAGE_SIZE)
@@ -60,7 +68,7 @@ typedef struct {
 #define PML2_AMT 512
 #define PML1_AMT 512
 
-static uint64_t pml4[PML4_AMT] __attribute__((aligned(PAGE_SIZE)));;
+static uint64_t* pml4;
 
 static bool paging_set_up = false;
 
@@ -133,8 +141,8 @@ static inline void incr_ptr(PmmPtr* ptr) {
 static struct limine_memmap_entry** entries;
 static uint64_t entries_count;
 static uint64_t highest_page;
-static uint64_t HIGHER_HALF_DATA_START;
-#define HIGHER_HALF_CODE	0xFFFFFFFF80000000UL
+static uint64_t HHDM_OFFSET;
+static uint64_t KERNEL_VIRT_BASE;
 
 #define LIMINE_MEMMAP_USABLE                 0
 #define LIMINE_MEMMAP_RESERVED               1
@@ -175,13 +183,13 @@ static void pmm_init() {
 		}
 
 		if(entry->length >= pmm_len) {
-			phys_mem_bitmap = (uint64_t*)(HIGHER_HALF_DATA_START + entry->base);
+			phys_mem_bitmap = (uint64_t*)(HHDM_OFFSET + entry->base);
 			break;
 		}
 	}
 	memset(phys_mem_bitmap, 0, pmm_len);
 
-	uint64_t pmm_start = ((uint64_t)phys_mem_bitmap - HIGHER_HALF_DATA_START) / PAGE_SIZE * PAGE_SIZE;
+	uint64_t pmm_start = ((uint64_t)phys_mem_bitmap - HHDM_OFFSET) / PAGE_SIZE * PAGE_SIZE;
 	uint64_t pmm_end = ALIGN(pmm_start + pmm_len);
 	for(uint64_t i = pmm_start; i < pmm_end; i += PAGE_SIZE) {
 		PmmPtr p = addr_to_pmm_indexing(i);
@@ -258,57 +266,52 @@ static inline uint64_t compute_vaddr(uint64_t pml4, uint64_t pml3, uint64_t pml2
 	return ((pml4 << 39) | (pml3 << 30) | (pml2 << 21) | (pml1 << 12) | (offset & 0xFFF)); // todo
 }
 
+static inline uint64_t* access_table(uint64_t* head_table, uint64_t index) {
+	return paging_set_up ? 
+		(uint64_t*) (head_table[index] & PAGING_PHYS_MASK) : 
+		(uint64_t*) ((head_table[index] & PAGING_PHYS_MASK) + HHDM_OFFSET);
+}
+
 // function should only be called for a page aligned vaddr, aligns the page anyways
-static void mmap(uint64_t vaddr, uint64_t phys_addr, uint64_t flags) {
+static void map_page(uint64_t vaddr, uint64_t phys_addr, uint64_t flags) {
 	PagingIndex p = compute_indices(vaddr);
 	
 	if((pml4[p.pml4] & FLAG_PRESENT) == 0) {
 		uint64_t page = pmm_alloc();
 		pml4[p.pml4] = page | FLAG_SUPERVISOR | FLAG_WRITE | FLAG_PRESENT;
-		if(paging_set_up) {
-			load_cr3(get_cr3());
-		}
+		uint64_t* pml3 = access_table(pml4, p.pml4);
+		memset(pml3, 0, PML3_AMT);
 	}
 	
-	uint64_t* pml3 = paging_set_up ? 
-		(uint64_t*) (pml4[p.pml4] & ~0xfff) : 
-		(uint64_t*) (pml4[p.pml4] & ~0xfff) + HIGHER_HALF_CODE;
+	uint64_t* pml3 = access_table(pml4, p.pml4);
 
 	if((pml3[p.pml3] & FLAG_PRESENT) == 0) {
 		uint64_t page = pmm_alloc();
 		pml3[p.pml3] = page | FLAG_SUPERVISOR | FLAG_WRITE | FLAG_PRESENT;
-		if(paging_set_up) {
-			load_cr3(get_cr3());
-		}
+		uint64_t* pml2 = access_table(pml3, p.pml3);
+		memset(pml2, 0, PML2_AMT);
 	}
 	
-	uint64_t* pml2 = paging_set_up ? 
-		(uint64_t*) (pml3[p.pml3] & ~0xfff) : 
-		(uint64_t*) (pml3[p.pml3] & ~0xfff) + HIGHER_HALF_CODE;
+	uint64_t* pml2 = access_table(pml3, p.pml3);
 
 	if((pml2[p.pml2] & FLAG_PRESENT) == 0) {
 		uint64_t page = pmm_alloc();
 		pml2[p.pml2] = page | FLAG_SUPERVISOR | FLAG_WRITE | FLAG_PRESENT;
-		if(paging_set_up) {
-			load_cr3(get_cr3());
-		}
+		uint64_t* pml1 = access_table(pml2, p.pml2);
+		memset(pml1, 0, PML1_AMT);
 	}
 
-	uint64_t* pml1 = paging_set_up ? 
-		(uint64_t*) (pml2[p.pml2] & ~0xfff) : 
-		(uint64_t*) (pml2[p.pml2] & ~0xfff) + HIGHER_HALF_CODE;
+	uint64_t* pml1 = access_table(pml2, p.pml2);
 
 	if((pml4[p.pml4] & FLAG_PRESENT) == 1) {
 		// todo: page is already occupied
 	}
 	pml1[p.pml1] = phys_addr | FLAG_PRESENT | flags;
-	if(paging_set_up) {
-		flush_tlb((void*)vaddr);
-	}
+	__asm__ volatile("invlpg (%0)" : : "r"(vaddr) : "memory");
 }
 
 // todo: free an entire pml level when its empty
-static void free_page(uint64_t vaddr) {
+static void unmap_page(uint64_t vaddr) {
 	PagingIndex p = compute_indices(vaddr);
 	
 	if((pml4[p.pml4] & FLAG_PRESENT) == 0) {
@@ -395,115 +398,35 @@ static uint64_t heap_end;
 static uint64_t heap_ptr;
 static uint64_t alloc_num;
 
+// todo, check if system paging mode is correct
 void paging_init(void) {
-	struct limine_hhdm_response* hhdm_response = hhdm_request.response;
+	struct limine_paging_mode_response* paging_response = paging_request.response;
+	if(paging_response == NULL) {
+		serial_log("paging response is null");
+	}
+	else if(paging_response->mode != LIMINE_PAGING_MODE_X86_64_4LVL) {
+		serial_log("wrong paging mode was activated");
+		hcf();
+	}
 
+	struct limine_hhdm_response* hhdm_response = hhdm_request.response;
 	if(hhdm_response == NULL) {
 		serial_log("hhdm response is null");
 		hcf();
 	}
+	HHDM_OFFSET = hhdm_response->offset;
 
-	HIGHER_HALF_DATA_START = hhdm_response->offset;
+	struct limine_executable_address_response* exe_addr_response = exe_addr_request.response;
+	if(exe_addr_response == NULL) {
+		serial_log("executable address response is NULL");
+		hcf();
+	}
+	KERNEL_VIRT_BASE = exe_addr_response->virtual_base;
 
-	// todo, check if system paging mode is correct
 	pmm_init();
-	uint64_t a = get_cr3();
 
-	/*uint64_t map1_start = 0xffff800000001000;
-	uint64_t map1_end =   0xffff8000000a0000;
-	uint64_t phys_1 =     0x000000000009f000;
-	
-	uint64_t map2_start = 0xffff800000100000;
-	uint64_t map2_end =   0xffff80007ffdf000;
-	uint64_t phys_2 =     0x000000007fedf000;
-
-	uint64_t map3_start = 0xffff8000fd000000;
-	uint64_t map3_end =   0xffff8000fd3e8000;
-	uint64_t phys_3 =     0x00000000003e8000;
-
-	uint64_t map4_start = 0xffffffff80000000;
-	uint64_t map4_end =   0xffffffff80001000;
-	uint64_t phys_4 =     0x0000000000001000;
-
-	uint64_t map5_start = 0xffffffff80001000; // only r data
-	uint64_t map5_end =   0xffffffff80004000;
-	uint64_t phys_5 =     0x0000000000003000;
-
-	uint64_t map6_start = 0xffffffff80004000;
-	uint64_t map6_end =   0xffffffff80009000;
-	uint64_t phys_6 =     0x0000000000005000;
-	
-	uint64_t maps_start[] = {
-		map1_start,
-		map2_start,
-		map3_start,
-		map4_start,
-		map5_start,
-		map6_start,
-	};
-
-	uint64_t maps_end[] = {
-		map1_end,
-		map2_end,
-		map3_end,
-		map4_end,
-		map5_end,
-		map6_end,
-	};
-
-	uint64_t maps_phys[] = {
-		phys_1,
-		phys_2,
-		phys_3,
-		phys_4,
-		phys_5,
-		phys_6,
-	};
-
-	PagingIndex maps_start_i[6];
-	PagingIndex maps_end_i[6];
-
-	for(uint64_t i = 0; i < 6; i++) {
-		// maps_start_i[i] = compute_indices(maps_start[i]);
-		// maps_end_i[i] = compute_indices(maps_end[i]);
-
-		/*serial_log("maps start ");
-		serial_log_num_unsigned(i);
-		serial_log(":\n");
-		serial_log("pml4: ");
-		serial_log_num_unsigned(maps_start_i[i].pml4);
-		serial_log("\n");
-		serial_log("pml3: ");
-		serial_log_num_unsigned(maps_start_i[i].pml3);
-		serial_log("\n");
-		serial_log("pml2: ");
-		serial_log_num_unsigned(maps_start_i[i].pml2);
-		serial_log("\n");
-		serial_log("pml1: ");
-		serial_log_num_unsigned(maps_start_i[i].pml1);
-		serial_log("\n");
-		serial_log("\n");
-
-		serial_log("maps end ");
-		serial_log_num_unsigned(i);
-		serial_log(":\n");
-		serial_log("pml4: ");
-		serial_log_num_unsigned(maps_end_i[i].pml4);
-		serial_log("\n");
-		serial_log("pml3: ");
-		serial_log_num_unsigned(maps_end_i[i].pml3);
-		serial_log("\n");
-		serial_log("pml2: ");
-		serial_log_num_unsigned(maps_end_i[i].pml2);
-		serial_log("\n");
-		serial_log("pml1: ");
-		serial_log_num_unsigned(maps_end_i[i].pml1);
-		serial_log("\n");
-		serial_log("\n");
-
-		PmmPtr p = addr_to_pmm_indexing(maps_phys[i]);
-		mark_pmm_bit_taken(p.index, p.bit);
-	}*/
+	pml4 = (uint64_t*) (pmm_alloc() + HHDM_OFFSET);
+	memset(pml4, 0, PAGE_SIZE);
 
 	struct limine_memmap_response* response = memmap_request.response; 
 	if(response == NULL) {
@@ -513,28 +436,43 @@ void paging_init(void) {
 	entries = response->entries;
 	entries_count = response->entry_count;
 
+	extern uint64_t _kernel_virt_end;
+
+	uint64_t kernel_phys_start = exe_addr_response->physical_base;
+	uint64_t kernel_virt_start = exe_addr_response->virtual_base;
+	uint64_t kernel_virt_end = (uint64_t) &_kernel_virt_end;
+	uint64_t kernel_size = kernel_virt_end - kernel_virt_start;
+
+	for(uint64_t i = 0; i < kernel_size; i += PAGE_SIZE) {
+		map_page(kernel_virt_start + i, kernel_phys_start + i, FLAG_WRITE | FLAG_PRESENT);
+	}
+
 	for(uint64_t i = 0; i < entries_count; i++) {
-		serial_log("entry:\n");
-		serial_log("base: ");
-		serial_log_num_unsigned(entries[i]->base);
-		serial_log("\nlength: ");
-		serial_log_num_unsigned(entries[i]->length);
-		serial_log("\ntype: ");
-		serial_log_num_unsigned(entries[i]->type);
-		serial_log("\n\n");
+		struct limine_memmap_entry* entry = entries[i];
+		if(entry->type == LIMINE_MEMMAP_BAD_MEMORY ||
+		   entry->type == LIMINE_MEMMAP_RESERVED ||
+		   entry->type == LIMINE_MEMMAP_ACPI_NVS) {
+			continue;
+		}
+
+		uint64_t flags = FLAG_WRITE | FLAG_SUPERVISOR;
+		if(entry->type == LIMINE_MEMMAP_FRAMEBUFFER) {
+			flags |= PAGING_WRITETHROUGH;
+		}
+
+		uint64_t end = entry->base + entry->length;
+		for(uint64_t phys = entry->base; i < end; i += PAGE_SIZE) {
+			uint64_t virt = phys + HHDM_OFFSET;
+			map_page(virt, phys, flags);
+		}
 	}
 
-	memset(pml4, 0, PML4_AMT);
-	
-	volatile uint64_t page;
-	for(uint64_t i = 0; i < 10; i++) {
-		page = pmm_alloc();
-	}
+	uint64_t phys_pml4 = (uint64_t)pml4-HHDM_OFFSET;
+	//pml4[511] = phys_pml4 | FLAG_PRESENT | FLAG_WRITE | FLAG_SUPERVISOR;
 
-	// todo
+	PagingIndex p = compute_indices(0xffffffff800052c0);
 
-	pml4[511] = (uint64_t)pml4-HIGHER_HALF_CODE | FLAG_PRESENT | FLAG_WRITE | FLAG_SUPERVISOR;
-	load_cr3((uint64_t)pml4-HIGHER_HALF_CODE);
+	__asm__ volatile("mov %0, %%cr3" : : "r"(phys_pml4) : "memory");
 
 	heap_start = compute_vaddr(0, 0, 0, 1, 0);
 	heap_end = heap_start;
@@ -575,7 +513,7 @@ void* kmalloc(uint64_t size) {
 		}
 
 		// todo: option for user memory
-		mmap(p, page, FLAG_SUPERVISOR | FLAG_WRITE);
+		map_page(p, page, FLAG_SUPERVISOR | FLAG_WRITE);
 		p += PAGE_SIZE;
 	}
 	heap_end += ALIGN(size);
