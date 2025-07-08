@@ -1,0 +1,357 @@
+#include "limine.h"
+#include <stddef.h>
+#include <stdbool.h>
+#include "util.h"
+#include "serial.h"
+#include "pmm.h"
+#include "memory_util.h"
+
+// crahses the system, for now replacing with a constant
+/*__attribute__((used, section(".limine_requests")))
+static volatile struct limine_entry_point_request entry_point_request = {
+	.id = LIMINE_ENTRY_POINT_REQUEST,
+	.revision = 3
+};*/
+
+typedef struct {
+	uint64_t pml4;
+	uint64_t pml3;
+	uint64_t pml2;
+	uint64_t pml1;
+} PagingIndex;
+
+typedef struct MemTracker {
+	void* addr;
+	uint64_t len;
+	struct MemTracker* next;
+} __attribute__((packed)) MemTracker;
+
+MemTracker* mem_tracker_start = NULL;
+
+#define FLAG_PRESENT    (1 << 0)
+#define FLAG_WRITE      (1 << 1)
+#define FLAG_READ       (0 << 1)
+#define FLAG_SUPERVISOR (0 << 2)
+#define FLAG_USER       (1 << 2)
+#define PAGING_WRITETHROUGH (1 << 3)
+#define PAGING_PHYS_MASK (0x00FFFFFFF000ULL)
+
+#define PML4_AMT 512
+#define PML3_AMT 512
+#define PML2_AMT 512
+#define PML1_AMT 512
+
+static uint64_t* pml4;
+
+static inline void load_cr3(uint64_t cr3_value) {
+	__asm__ volatile("mov %0, %%cr3" :: "r"(cr3_value) : "memory");
+}
+
+static inline uint64_t get_cr3(void) {
+	uint64_t cr3;
+	__asm__ volatile ("mov %%cr3, %0" : "=r"(cr3));
+	return cr3;
+}
+
+static uint64_t HHDM_OFFSET;
+static uint64_t KERNEL_VIRT_BASE;
+
+static inline PagingIndex compute_indices(uint64_t vaddr) {
+	PagingIndex p = {
+		.pml4 = (vaddr >> 39) & 0x1FF,
+		.pml3 = (vaddr >> 30) & 0x1FF,
+		.pml2 = (vaddr >> 21) & 0x1FF,
+		.pml1 = (vaddr >> 12) & 0x1FF,
+	};
+	return p;
+}
+
+static inline uint64_t compute_vaddr(PagingIndex p, uint64_t offset) {
+	return ((p.pml4 << 39) | (p.pml3 << 30) | (p.pml2 << 21) | (p.pml1 << 12) | (offset & 0xFFF)); // todo
+}
+
+// returns true if theres no index overflow
+static inline bool incr_paging_index(PagingIndex p) {
+	p.pml1++;
+	if(p.pml1 >= PML1_AMT) {
+		p.pml1 = 0;
+		p.pml2++;
+	}
+	if(p.pml2 >= PML2_AMT) {
+		p.pml2 = 0;
+		p.pml3++;
+	}
+	if(p.pml3 >= PML3_AMT) {
+		p.pml3 = 0;
+		p.pml4++;
+	}
+	if(p.pml4 >= PML4_AMT) {
+		// reached the final page
+		return false;
+	}
+	return true;
+}
+
+static inline uint64_t* access_table(uint64_t* head_table, uint64_t index) {
+	return (uint64_t*) ((head_table[index] & PAGING_PHYS_MASK) + HHDM_OFFSET);
+}
+
+// function should only be called for a page aligned vaddr, aligns the page anyways
+static void map_page(uint64_t vaddr, uint64_t phys_addr, uint64_t flags) {
+	PagingIndex p = compute_indices(vaddr);
+	
+	if((pml4[p.pml4] & FLAG_PRESENT) == 0) {
+		uint64_t page = pmm_alloc();
+		pml4[p.pml4] = page | FLAG_SUPERVISOR | FLAG_WRITE | FLAG_PRESENT;
+		uint64_t* pml3 = access_table(pml4, p.pml4);
+		memset(pml3, 0, PAGE_SIZE);
+	}
+	
+	uint64_t* pml3 = access_table(pml4, p.pml4);
+
+	if((pml3[p.pml3] & FLAG_PRESENT) == 0) {
+		uint64_t page = pmm_alloc();
+		pml3[p.pml3] = page | FLAG_SUPERVISOR | FLAG_WRITE | FLAG_PRESENT;
+		uint64_t* pml2 = access_table(pml3, p.pml3);
+		memset(pml2, 0, PAGE_SIZE);
+	}
+	
+	uint64_t* pml2 = access_table(pml3, p.pml3);
+
+	if((pml2[p.pml2] & FLAG_PRESENT) == 0) {
+		uint64_t page = pmm_alloc();
+		pml2[p.pml2] = page | FLAG_SUPERVISOR | FLAG_WRITE | FLAG_PRESENT;
+		uint64_t* pml1 = access_table(pml2, p.pml2);
+		memset(pml1, 0, PAGE_SIZE);
+	}
+
+	uint64_t* pml1 = access_table(pml2, p.pml2);
+
+	if((pml1[p.pml1] & FLAG_PRESENT) == 1) {
+		// todo: page is already occupied
+	}
+	pml1[p.pml1] = phys_addr | FLAG_PRESENT | flags;
+	__asm__ volatile("invlpg (%0)" : : "r"(vaddr) : "memory");
+}
+
+/*
+	todo:
+	free an entire pml level when its empty
+*/
+static void unmap_page(uint64_t vaddr) {
+	PagingIndex p = compute_indices(vaddr);
+	
+	if((pml4[p.pml4] & FLAG_PRESENT) == 0) {
+		return;
+	}
+
+	uint64_t* pml3 = (uint64_t*) pml4[p.pml4];
+	if((pml3[p.pml3] & FLAG_PRESENT) == 0) {
+		return;
+	}
+	
+	uint64_t* pml2 = (uint64_t*) pml3[p.pml3];
+	if((pml2[p.pml2] & FLAG_PRESENT) == 0) {
+		return;
+	}
+
+	uint64_t* pml1 = (uint64_t*) pml2[p.pml2];
+	if((pml1[p.pml1] & FLAG_PRESENT) == 0) {
+		return;
+	}
+	pmm_free(pml1[p.pml1] & ~0xfff);
+	pml1[p.pml1] = 0x0;
+	__asm__ volatile("invlpg (%0)" : : "r"(vaddr) : "memory");
+}
+
+static uint64_t find_free_vpages(uint64_t pages_amt) {
+	uint64_t start = 0x1000;
+	uint64_t pages_found = 0;
+	for(uint64_t p4_i = 0; p4_i < PML4_AMT; p4_i++) {
+		if((pml4[p4_i] & FLAG_PRESENT) == 0) {
+			pages_found += PAGE_SIZE * PML1_AMT * PML2_AMT * PML3_AMT;
+			if(pages_found >= pages_amt) {
+				return start;
+			}
+			else {
+				continue;
+			}
+		}
+		uint64_t* pml3 = access_table(pml4, p4_i);
+
+		for(uint64_t p3_i = 0; p3_i < PML3_AMT; p3_i++) {
+			if((pml3[p3_i] & FLAG_PRESENT) == 0) {
+				pages_found += PAGE_SIZE * PML1_AMT * PML2_AMT;
+				if(pages_found >= pages_amt) {
+					return start;
+				}
+				else {
+					continue;
+				}
+			}
+			uint64_t* pml2 = access_table(pml3, p3_i);
+
+			for(uint64_t p2_i = 0; p2_i < PML2_AMT; p2_i++) {
+				if((pml2[p2_i] & FLAG_PRESENT) == 0) {
+					pages_found += PAGE_SIZE * PML1_AMT;
+					if(pages_found >= pages_amt) {
+						return start;
+					}
+					else {
+						continue;
+					}
+				}
+				uint64_t* pml1 = access_table(pml2, p2_i);
+
+				for(uint64_t p1_i = 0; p1_i < PML1_AMT; p1_i++) {
+					if(p4_i == 0 && p3_i == 0 && p2_i == 0 && p1_i == 0) {
+						continue;
+					}
+
+					if((pml1[p1_i] & FLAG_PRESENT) == 0) {
+						pages_found += PAGE_SIZE;
+						if(pages_found >= pages_amt) {
+							return start;
+						}
+					}
+					else {
+						PagingIndex p = {p4_i, p3_i, p2_i, p1_i};
+						start = compute_vaddr(p, 0) + PAGE_SIZE;
+						pages_found = 0;
+					}
+				}
+			}
+		}
+	}
+	return 0;
+}
+
+static uint64_t heap_start;
+static uint64_t heap_end;
+static uint64_t heap_ptr;
+static uint64_t alloc_num;
+
+// todo, check if system paging mode is correct
+void paging_init(void) {
+	struct limine_paging_mode_response* paging_response = paging_request.response;
+	if(paging_response == NULL) {
+		serial_log("paging response is null");
+	}
+	else if(paging_response->mode != LIMINE_PAGING_MODE_X86_64_4LVL) {
+		serial_log("wrong paging mode was activated");
+		hcf();
+	}
+
+	struct limine_hhdm_response* hhdm_response = hhdm_request.response;
+	if(hhdm_response == NULL) {
+		serial_log("hhdm response is null");
+		hcf();
+	}
+	HHDM_OFFSET = hhdm_response->offset;
+
+	struct limine_executable_address_response* exe_addr_response = exe_addr_request.response;
+	if(exe_addr_response == NULL) {
+		serial_log("executable address response is NULL");
+		hcf();
+	}
+	KERNEL_VIRT_BASE = exe_addr_response->virtual_base;
+
+	pml4 = (uint64_t*) (pmm_alloc() + HHDM_OFFSET);
+	memset(pml4, 0, PAGE_SIZE);
+
+	struct limine_memmap_response* response = memmap_request.response; 
+	if(response == NULL) {
+		// todo
+		hcf();
+	}
+	struct limine_memmap_entry** entries = response->entries;
+	uint64_t entries_count = response->entry_count;
+
+	extern uint64_t _kernel_virt_end;
+
+	uint64_t kernel_phys_start = exe_addr_response->physical_base;
+	uint64_t kernel_virt_start = exe_addr_response->virtual_base;
+	uint64_t kernel_virt_end = (uint64_t) &_kernel_virt_end;
+	uint64_t kernel_size = kernel_virt_end - kernel_virt_start;
+
+	for(uint64_t i = 0; i < kernel_size; i += PAGE_SIZE) {
+		map_page(kernel_virt_start + i, kernel_phys_start + i, FLAG_WRITE | FLAG_PRESENT);
+	}
+
+	for(uint64_t i = 0; i < entries_count; i++) {
+		struct limine_memmap_entry* entry = entries[i];
+		if(entry->type == LIMINE_MEMMAP_BAD_MEMORY ||
+		   entry->type == LIMINE_MEMMAP_RESERVED ||
+		   entry->type == LIMINE_MEMMAP_ACPI_NVS) {
+			continue;
+		}
+
+		uint64_t flags = FLAG_WRITE | FLAG_SUPERVISOR;
+		if(entry->type == LIMINE_MEMMAP_FRAMEBUFFER) {
+			flags |= PAGING_WRITETHROUGH;
+		}
+
+		uint64_t start = entry->base / PAGE_SIZE * PAGE_SIZE;
+		uint64_t end = ALIGN(entry->base + entry->length);
+		uint64_t len = end - start;
+		for(uint64_t j = start; j < end; j += PAGE_SIZE) {
+			//serial_log("j: ");
+			//serial_log_num_unsigned(j);
+			//serial_log("\n");
+			uint64_t virt = j + HHDM_OFFSET;
+			map_page(virt, j, flags);
+		}
+	}
+	map_page(0, 0, 0);
+	serial_log("mapping done!\n");
+
+	uint64_t phys_pml4 = (uint64_t)pml4-HHDM_OFFSET;
+	//pml4[510] = phys_pml4 | FLAG_PRESENT | FLAG_WRITE | FLAG_SUPERVISOR;
+
+	__asm__ volatile("mov %0, %%cr3" : : "r"(phys_pml4) : "memory");
+
+	heap_start = 0x1000;
+	heap_end = heap_start;
+	heap_ptr = heap_start;
+	alloc_num = 0;
+}
+
+void* kmalloc(uint64_t size) {
+	if(size == 0) {
+		return NULL;
+	}
+	
+	if(heap_end - heap_ptr >= size) {
+		void* addr = (void*) heap_ptr;
+		heap_ptr += size;
+		alloc_num++;
+		return addr;
+	}
+
+	uint64_t pages_to_alloc = ceil_div(size, PAGE_SIZE);
+	uint64_t start = find_free_vpages(pages_to_alloc);
+	if(start == 0) {
+		return NULL;
+	}
+
+	uint64_t p = start;
+	for(uint64_t i = 0; i < pages_to_alloc; i++) {
+		uint64_t page = pmm_alloc();
+		if(page == 0) {
+			// todo
+			hcf();
+		}
+
+		// todo: option for user memory
+		map_page(p, page, FLAG_SUPERVISOR | FLAG_WRITE);
+		p += PAGE_SIZE;
+	}
+	
+	
+
+	return (void*) start;
+}
+
+void kfree(void* addr) {
+	
+}

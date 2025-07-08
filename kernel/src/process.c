@@ -1,6 +1,6 @@
 #include "process.h"
-#include "mem.h"
 #include "idt.h"
+#include "memory/vmm.h"
 
 Process* head_process;
 Process* current_process;

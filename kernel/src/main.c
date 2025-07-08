@@ -3,7 +3,8 @@
 #include <stdbool.h>
 #include <limine.h>
 #include "util.h"
-#include "mem.h"
+#include "memory/pmm.h"
+#include "memory/vmm.h"
 #include "idt.h"
 #include "print.h"
 #include "serial.h"
@@ -36,13 +37,14 @@ void kmain(void) {
     pit_init();
     init_keyboard();
     //__asm__ volatile ("div %0" :: "r"(0));
+    pmm_init();
     paging_init();
+    serial_log("paging done!\n");
 
-    //unsigned int* a = kmalloc(sizeof(unsigned int));
-    //*a = 69;
-    serial_log("num test: ");
-    //serial_log_num_unsigned(*a);
-    
+    unsigned int* a = kmalloc(sizeof(unsigned int));
+    *a = 69;
+    serial_log_num_unsigned(*a);
+
     // We're done, just hang...
     hcf();
 }

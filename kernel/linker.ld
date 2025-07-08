@@ -77,8 +77,9 @@ SECTIONS
         *(COMMON)
 
         _data_end = .;
-        _kernel_virt_end = .;
     } :data
+
+    _kernel_virt_end = ALIGN(4K);
 
     /* Discard .note.* and .eh_frame* since they may cause issues on some hosts. */
     /DISCARD/ : {

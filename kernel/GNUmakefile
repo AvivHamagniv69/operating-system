@@ -13,13 +13,13 @@ PREFIX := /usr/local
 CC := cc
 
 # User controllable C flags.
-CFLAGS := -g -O2 -pipe
+CFLAGS := -g -O3 -pipe -march=native -flto -funroll-loops -ftree-vectorize -finline-functions
 
 # User controllable C preprocessor flags. We set none by default.
 CPPFLAGS :=
 
 # User controllable nasm flags.
-NASMFLAGS := -F dwarf -g
+NASMFLAGS := -g -F dwarf
 
 # User controllable linker flags. We set none by default.
 LDFLAGS :=
@@ -42,25 +42,25 @@ endif
 
 # Internal C flags that should not be changed by the user.
 override CFLAGS += \
-	-O0 \
-	-Wall \
-	-Wextra \
-	-std=gnu11 \
-	-nostdinc \
-	-ffreestanding \
-	-fno-stack-protector \
-	-fno-stack-check \
-	-fno-PIC \
-	-ffunction-sections \
-	-fdata-sections \
-	-m64 \
-	-march=x86-64 \
-	-mno-80387 \
-	-mno-mmx \
-	-mno-sse \
-	-mno-sse2 \
-	-mno-red-zone \
-	-mcmodel=kernel
+    -Wall \
+    -Wextra \
+    -std=gnu11 \
+    -nostdinc \
+    -ffreestanding \
+    -fno-stack-protector \
+    -fno-stack-check \
+    -fno-lto \
+    -fno-PIC \
+    -ffunction-sections \
+    -fdata-sections \
+    -m64 \
+    -march=x86-64 \
+    -mno-80387 \
+    -mno-mmx \
+    -mno-sse \
+    -mno-sse2 \
+    -mno-red-zone \
+    -mcmodel=kernel
 
 # Internal C preprocessor flags that should not be changed by the user.
 override CPPFLAGS := \
@@ -73,9 +73,8 @@ override CPPFLAGS := \
 
 # Internal nasm flags that should not be changed by the user.
 override NASMFLAGS += \
-	-g \
-	-Wall \
-	-f elf64
+    -Wall \
+    -f elf64
 
 # Internal linker flags that should not be changed by the user.
 override LDFLAGS += \
