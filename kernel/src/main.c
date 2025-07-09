@@ -45,6 +45,12 @@ void kmain(void) {
     *a = 69;
     serial_log_num_unsigned(*a);
 
+    int* b = (int*) kmalloc(sizeof(int));
+
+    kfree(b);
+    kfree(a);
+
+
     // We're done, just hang...
     hcf();
 }

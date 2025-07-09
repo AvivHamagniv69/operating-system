@@ -20,7 +20,9 @@ typedef struct {
 	uint64_t pml1;
 } PagingIndex;
 
+// todo: add checksum
 typedef struct MemTracker {
+	bool free;
 	void* addr;
 	uint64_t len;
 	struct MemTracker* next;
@@ -28,11 +30,11 @@ typedef struct MemTracker {
 
 MemTracker* mem_tracker_start = NULL;
 
-#define FLAG_PRESENT    (1 << 0)
-#define FLAG_WRITE      (1 << 1)
-#define FLAG_READ       (0 << 1)
-#define FLAG_SUPERVISOR (0 << 2)
-#define FLAG_USER       (1 << 2)
+#define FLAG_PRESENT    (1ULL << 0ULL)
+#define FLAG_WRITE      (1ULL << 1ULL)
+#define FLAG_READ       (0ULL << 1ULL)
+#define FLAG_SUPERVISOR (0ULL << 2ULL)
+#define FLAG_USER       (1ULL << 2ULL)
 #define PAGING_WRITETHROUGH (1 << 3)
 #define PAGING_PHYS_MASK (0x00FFFFFFF000ULL)
 
@@ -96,6 +98,33 @@ static inline uint64_t* access_table(uint64_t* head_table, uint64_t index) {
 	return (uint64_t*) ((head_table[index] & PAGING_PHYS_MASK) + HHDM_OFFSET);
 }
 
+static uint64_t get_phys_addr(uint64_t vaddr) {
+	PagingIndex p = compute_indices(vaddr);
+	
+	if((pml4[p.pml4] & FLAG_PRESENT) == 0) {
+		return 0;
+	}
+	
+	uint64_t* pml3 = access_table(pml4, p.pml4);
+
+	if((pml3[p.pml3] & FLAG_PRESENT) == 0) {
+		return 0;
+	}
+	
+	uint64_t* pml2 = access_table(pml3, p.pml3);
+
+	if((pml2[p.pml2] & FLAG_PRESENT) == 0) {
+		return 0;
+	}
+
+	uint64_t* pml1 = access_table(pml2, p.pml2);
+
+	if((pml1[p.pml1] & FLAG_PRESENT) == 1) {
+		// todo: page is already occupied
+	}
+	return pml1[p.pml1] & PAGING_PHYS_MASK;
+}
+
 // function should only be called for a page aligned vaddr, aligns the page anyways
 static void map_page(uint64_t vaddr, uint64_t phys_addr, uint64_t flags) {
 	PagingIndex p = compute_indices(vaddr);
@@ -145,17 +174,17 @@ static void unmap_page(uint64_t vaddr) {
 		return;
 	}
 
-	uint64_t* pml3 = (uint64_t*) pml4[p.pml4];
+	uint64_t* pml3 = access_table(pml4, p.pml4);
 	if((pml3[p.pml3] & FLAG_PRESENT) == 0) {
 		return;
 	}
 	
-	uint64_t* pml2 = (uint64_t*) pml3[p.pml3];
+	uint64_t* pml2 = access_table(pml3, p.pml3);
 	if((pml2[p.pml2] & FLAG_PRESENT) == 0) {
 		return;
 	}
 
-	uint64_t* pml1 = (uint64_t*) pml2[p.pml2];
+	uint64_t* pml1 = access_table(pml2, p.pml2);
 	if((pml1[p.pml1] & FLAG_PRESENT) == 0) {
 		return;
 	}
@@ -320,15 +349,40 @@ void* kmalloc(uint64_t size) {
 	if(size == 0) {
 		return NULL;
 	}
-	
-	if(heap_end - heap_ptr >= size) {
-		void* addr = (void*) heap_ptr;
-		heap_ptr += size;
-		alloc_num++;
-		return addr;
+
+	MemTracker* h = mem_tracker_start;
+	while(h != NULL) {
+		if(h->free == false || h->len < size) {
+			h = h->next;
+			continue;
+		}
+
+		void* return_addr = h->addr;
+		h->free = false;
+
+		uint64_t new_len = h->len - size;
+		if(new_len > sizeof(MemTracker)) {
+			MemTracker* new_block = (MemTracker*) ((uint64_t)h->addr + size);
+			new_block->free = true;
+			new_block->len = new_len - sizeof(MemTracker);
+			new_block->next = h->next;
+			new_block->addr = (void*) (new_block+1);
+			h->next = new_block;
+		}
+
+		h->len = size;
+		return return_addr;
 	}
 
-	uint64_t pages_to_alloc = ceil_div(size, PAGE_SIZE);
+	uint64_t total_size = sizeof(MemTracker) + size;
+	bool leftover_memory = false;
+	if(total_size % PAGE_SIZE != 0) {
+		total_size += sizeof(MemTracker);
+		leftover_memory = true;
+	}
+	uint64_t size_aligned = ALIGN(total_size);
+	uint64_t pages_to_alloc = size_aligned / PAGE_SIZE;
+	
 	uint64_t start = find_free_vpages(pages_to_alloc);
 	if(start == 0) {
 		return NULL;
@@ -347,11 +401,96 @@ void* kmalloc(uint64_t size) {
 		p += PAGE_SIZE;
 	}
 	
-	
+	MemTracker* return_block = (MemTracker*) start;
+	return_block->free = false;
+	return_block->addr = (void*) (return_block+1);
+	return_block->len = size;
+	return_block->next = NULL;
 
-	return (void*) start;
+	if(mem_tracker_start == NULL) {
+		mem_tracker_start = return_block;
+	}
+	else {
+		MemTracker* h = mem_tracker_start;
+		while(h->next != NULL) {
+			h = h->next;
+		}
+		h->next = return_block;
+	}
+
+	if(leftover_memory) {
+		MemTracker* leftover = (MemTracker*) (start + sizeof(MemTracker) + size);
+		leftover->free = true;
+		leftover->addr = (void*) (leftover+1);
+		leftover->len = size_aligned - total_size;
+		leftover->next = NULL;
+		return_block->next = leftover;
+	}
+
+	return return_block->addr;
+}
+
+static void combine_free_blocks(MemTracker* start) {
+	if(start == NULL || start->free == false) {
+		return;
+	}
+	
+	uint64_t total_size = start->len;
+	MemTracker* h = start->next;
+	while(h != NULL && h->free == true) {
+		total_size += h->len + sizeof(MemTracker);
+		h = h->next;
+	}
+
+	start->len = total_size;
+	start->next = h;
 }
 
 void kfree(void* addr) {
-	
+	MemTracker* tracker = ((MemTracker*) addr)-1;
+	if(tracker->addr != addr) {
+		// todo
+		hcf();
+	}
+	tracker->free = true;
+	combine_free_blocks(tracker);
+
+	MemTracker* prev = mem_tracker_start;
+	if(prev != tracker) {
+		while(prev->next != tracker) {
+			prev = prev->next;
+		}	
+	}
+
+	MemTracker* next = tracker->next;
+
+	const uint64_t total_size = sizeof(MemTracker) + tracker->len;
+	if((uint64_t)tracker % PAGE_SIZE != 0 || total_size < PAGE_SIZE) { // todo: check if its bigger then two pages yet not aligned if so handle that case
+		return;
+	}
+	const uint64_t floor_aligned_size = total_size / PAGE_SIZE * PAGE_SIZE;
+	const uint64_t pages_to_free = floor_aligned_size / PAGE_SIZE;	
+	uint64_t leftover_addr = (uint64_t)tracker;
+	for(uint64_t i = 0; i < pages_to_free; i++, leftover_addr += PAGE_SIZE) {
+		uint64_t phys = get_phys_addr(leftover_addr);
+		pmm_free(phys);
+		unmap_page(leftover_addr);
+	}
+
+	const uint64_t leftover_size = total_size - floor_aligned_size;
+	if(leftover_size > sizeof(MemTracker)) {
+		MemTracker* temp = (MemTracker*) leftover_addr;
+		temp->addr = (void*) (temp+1);
+		temp->free = true;
+		temp->len = leftover_size;
+		temp->next = next;
+		next = temp;
+	}
+	// if the left over size is smaller then the size of MemTracker we have no choice but to waste it and leave fragmentation
+	if(mem_tracker_start == prev) {
+		mem_tracker_start = next;
+	}
+	else {
+		prev->next = next;
+	}
 }

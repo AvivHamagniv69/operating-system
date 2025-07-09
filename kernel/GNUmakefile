@@ -13,7 +13,7 @@ PREFIX := /usr/local
 CC := cc
 
 # User controllable C flags.
-CFLAGS := -g -O3 -pipe -march=native -flto -funroll-loops -ftree-vectorize -finline-functions
+CFLAGS := -g -pipe -march=native -flto -funroll-loops -ftree-vectorize -finline-functions # -O3
 
 # User controllable C preprocessor flags. We set none by default.
 CPPFLAGS :=
