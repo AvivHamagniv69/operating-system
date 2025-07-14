@@ -1,7 +1,7 @@
 #include <stdint.h>
 #include "util.h"
 #include "idt.h"
-#include "print.h"
+#include "print/print.h"
 #include "serial.h"
 #include "ps2.h"
 

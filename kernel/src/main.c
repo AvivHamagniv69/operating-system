@@ -6,10 +6,10 @@
 #include "memory/pmm.h"
 #include "memory/vmm.h"
 #include "idt.h"
-#include "print.h"
 #include "serial.h"
 #include "pit.h"
 #include "ps2.h"
+#include "print/print.h"
 
 __attribute__((used, section(".limine_requests")))
 static volatile LIMINE_BASE_REVISION(3);
@@ -49,7 +49,6 @@ void kmain(void) {
 
     kfree(b);
     kfree(a);
-
 
     // We're done, just hang...
     hcf();

@@ -5,3 +5,4 @@
 /src/limine.h
 /bin
 /obj
+kernel/src/print/*.psf

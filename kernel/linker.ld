@@ -40,9 +40,6 @@ SECTIONS
     .text : {
         _text_start = .;
 
-        _psf_start = .;
-        KEEP(*obj/Lat2-VGA16.psf.o(.text))
-        _psf_end = .;
         *(.text .text.*)
 
         _text_end = .;
